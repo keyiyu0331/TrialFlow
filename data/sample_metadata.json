@@ -1,0 +1,15 @@
+{
+  "retrieved_at_utc": "2026-10-13T16:00:45.296909+00:00",
+  "api_url": "https://clinicaltrials.gov/api/v2/studies",
+  "query": {
+    "query.cond": "breast cancer",
+    "filter.overallStatus": "RECRUITING,NOT_YET_RECRUITING",
+    "pageSize": 100,
+    "format": "json",
+    "sort": "LastUpdatePostDate:desc"
+  },
+  "trials": 25,
+  "site_rows": 1715,
+  "selection": "First 25 returned studies with >= 1 publicly listed location, sorted by registry last update",
+  "note": "Locations represent reported trial sites, not confirmed operationally activated sites."
+}

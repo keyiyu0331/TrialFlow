@@ -58,7 +58,20 @@ def test_patch_writes_one_event_per_changed_field():
 
 def test_patch_rejects_empty_body_and_blocked_without_reason():
     assert client.patch("/milestones/1002", json={}).status_code == 422
-    assert client.patch("/milestones/1003", json={"status": "blocked"}).status_code == 422
+    r = client.patch("/milestones/1003", json={"status": "blocked"})
+    assert r.status_code == 422
+    assert r.json() == {"detail": "blocked_reason is required when status is blocked",
+                        "code": "validation_error"}
+
+
+def test_validation_errors_use_error_response_shape():
+    r = client.get("/trials?limit=0")
+    assert r.status_code == 422 and r.json()["code"] == "validation_error"
+    assert r.json()["detail"].startswith("query.limit:")
+    spec = client.get("/openapi.json").json()
+    schema = spec["paths"]["/trials"]["get"]["responses"]["422"]["content"]["application/json"]
+    assert schema["schema"]["$ref"].endswith("/ErrorResponse")
+    assert "HTTPValidationError" not in spec["components"]["schemas"]
 
 
 def test_dependency_errors():

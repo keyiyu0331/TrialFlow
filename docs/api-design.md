@@ -20,7 +20,7 @@ FastAPI, JSON. Interactive docs are at `/docs`. Stubs live in `backend/app/route
 
 \* can be repeated, e.g. `?delay_level=8_30&delay_level=over_30`.
 
-**Status codes:** 200/201/204 on success; 404 `not_found`; 409 on dependency conflicts; 422 for an invalid body (e.g. an empty PATCH, `blocked` without `blocked_reason`, or a self-dependency).
+**Status codes:** 200/201/204 on success; 404 `not_found`; 409 on dependency conflicts; 422 `validation_error` for an invalid body, path, or query parameter (e.g. an empty PATCH, `blocked` without `blocked_reason`, a self-dependency, or `limit=0`). 422 uses the same `{detail, code}` shape as every other error. `detail` joins the messages with `; ` and prefixes each with its field (`due_date: Input should be a valid date`). Path and query fields get `path.`/`query.` prefixes (`query.limit: …`). Business-rule 422s keep their own code, e.g. `unknown_user`.
 
 ## Key examples
 These are trimmed versions of the stub output. The trial and site are real (NCT07578116, Smilow Derby); the milestones and owners are synthetic.

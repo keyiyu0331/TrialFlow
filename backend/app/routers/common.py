@@ -3,6 +3,7 @@ from fastapi import HTTPException, Query, status
 from ..schemas import ErrorResponse
 
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Resource not found"}}
+VALIDATION_ERROR = {422: {"model": ErrorResponse, "description": "Invalid request"}}
 
 
 def not_found(resource: str, resource_id: int) -> HTTPException:

@@ -36,7 +36,7 @@ Paths marked *(planned)* do not exist yet; they show where new code should go.
 - Type hints everywhere. SQLAlchemy 2 `Mapped[...]` / `mapped_column` style; Pydantic 2 models live in `schemas.py`.
 - Enums live only in `enums.py` (str-valued) and are shared by models and schemas.
 - Keep models portable, since tests run on SQLite: JSON, not ARRAY; no PG-only SQL in CHECKs. Name constraints with `ck_`, `uq_`, `fk_` prefixes.
-- Errors: raise `HTTPException` with a `{"detail", "code"}` body (e.g. `not_found`, `dependency_cycle`).
+- Errors: raise `HTTPException` with a `{"detail", "code"}` body (e.g. `not_found`, `dependency_cycle`). Pydantic validation failures are converted to the same shape (`validation_error`) in `main.py`.
 - Computed values (see Domain rules) are derived in services, never added as columns.
 - Short docstrings that state rules and rationale; match the surrounding comment density. No formatter or linter is configured yet.
 

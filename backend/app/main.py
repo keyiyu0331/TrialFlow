@@ -1,7 +1,9 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .routers import catalog, milestones, trial_sites, trials
+from .routers.common import VALIDATION_ERROR
 
 app = FastAPI(
     title="TrialFlow API",
@@ -21,8 +23,21 @@ async def _error_body(request, exc: HTTPException):
     return JSONResponse(status_code=exc.status_code, content=body, headers=exc.headers)
 
 
+@app.exception_handler(RequestValidationError)
+async def _validation_error_body(request, exc: RequestValidationError):
+    # Replace FastAPI's default {"detail": [...]} with the ErrorResponse shape.
+    messages = []
+    for err in exc.errors():
+        msg = err["msg"].removeprefix("Value error, ")
+        loc = ".".join(str(p) for p in err["loc"] if p != "body")
+        messages.append(f"{loc}: {msg}" if loc else msg)
+    return JSONResponse(status_code=422,
+                        content={"detail": "; ".join(messages), "code": "validation_error"})
+
+
+# VALIDATION_ERROR replaces the default HTTPValidationError schema in the OpenAPI spec.
 for r in (trials.router, trial_sites.router, milestones.router, catalog.router):
-    app.include_router(r)
+    app.include_router(r, responses=VALIDATION_ERROR)
 
 
 @app.get("/health", tags=["meta"])

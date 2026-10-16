@@ -24,6 +24,7 @@ Paths marked *(planned)* do not exist yet; they show where new code should go.
 - `docs/data-mapping.md`: API v2 JSON paths → columns, with data-quality flags
 - `docs/site-activation-research.md`: milestones, dependencies, delay benchmarks
 - `docs/architecture.md`: system architecture and tech stack; `docs/work-split.md`: team responsibilities
+- `docs/SYSTEM_OVERVIEW.md`: Mermaid diagrams of system, backend file map, and a sample request flow. Update when the structure changes.
 - Update these docs when you change models or endpoints.
 
 ## Build and run

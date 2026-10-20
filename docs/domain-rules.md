@@ -45,7 +45,7 @@ The `as_of` floor means an overdue milestone cannot finish before today.
 
 **D12. Health** (dashboard state):
 - `activated`: GREEN_LIGHT is `complete`.
-- `blocked`: at least one root blocker is overdue.
+- `blocked`: at least one root blocker exists. A root blocker is by definition overdue or marked `blocked`, so a milestone someone flagged `blocked` counts even before its due date.
 - `at_risk`: not blocked, but `site_slip > 0`.
 - `on_track`: otherwise.
 

@@ -12,7 +12,7 @@ trial, site, **trial site** (one site in one trial; the unit we activate), miles
 Paths marked *(planned)* do not exist yet; they show where new code should go.
 - `backend/app/`: `models.py` (tables), `enums.py`, `schemas.py` (API shapes), `routers/` (endpoints), `db.py`, `main.py`
 - `backend/app/placeholders.py`: synthetic placeholder data the router stubs return. Delete it once the routers query the DB.
-- `backend/app/services/` *(planned)*: readiness, blockers, cycle detection, template instantiation, event writes. Keep routers thin.
+- `backend/app/services/`: `readiness.py` is done (pure functions for ready, blocking, top blocker, slip, health, cycle check; see `docs/domain-rules.md`). *(planned)* template instantiation, event writes. Keep routers thin.
 - `backend/tests/`: pytest; `conftest.py` provides the SQLite `session` and `world` fixtures.
 - `scripts/`: `run_extraction.ps1` (wrapper; `extract_trials.py` is missing). *(planned)* `import_registry.py`, `seed.py`.
 - `frontend/` *(planned)*: Next.js/React/TypeScript.

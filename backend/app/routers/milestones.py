@@ -3,12 +3,13 @@
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from .. import models as m
 from ..db import get_session
 from ..deps import get_today
-from ..enums import ActivationStatus, EventType, MilestoneStatus
+from ..enums import SATISFIED_STATUSES, ActivationStatus, EventType, MilestoneStatus
 from ..schemas import ErrorResponse, MilestoneUpdate, MilestoneUpdateResult
 from ..services import readiness, views
 from .common import NOT_FOUND, not_found
@@ -20,10 +21,22 @@ def _unprocessable(code: str, detail: str) -> HTTPException:
     return HTTPException(422, detail={"detail": detail, "code": code})
 
 
+def _open_predecessors(session: Session, ms: m.Milestone) -> list[m.Milestone]:
+    """Predecessors of `ms` that are not yet complete or not_applicable."""
+    stmt = (
+        select(m.Milestone)
+        .join(m.MilestoneDependency, m.MilestoneDependency.predecessor_id == m.Milestone.id)
+        .where(m.MilestoneDependency.successor_id == ms.id)
+        .order_by(m.Milestone.id)
+    )
+    return [p for p in session.scalars(stmt) if p.status not in SATISFIED_STATUSES]
+
+
 @router.patch(
     "/milestones/{milestone_id}",
     response_model=MilestoneUpdateResult,
-    responses={**NOT_FOUND, 422: {"model": ErrorResponse, "description": "Invalid change"}},
+    responses={**NOT_FOUND, 422: {"model": ErrorResponse, "description": "Invalid change"},
+        409: {"model": ErrorResponse, "description": "Predecessors still open (unsatisfied_dependencies)"}},
     summary="Change status, owner, or due date; writes one event per changed field",
 )
 def update_milestone(milestone_id: int, body: MilestoneUpdate, session: Session = Depends(get_session),
@@ -39,6 +52,17 @@ def update_milestone(milestone_id: int, body: MilestoneUpdate, session: Session 
         raise _unprocessable("unknown_user", "Unknown changed_by_user_id")
     if body.due_date and ms.planned_start_date and body.due_date < ms.planned_start_date:
         raise _unprocessable("invalid_due_date", "due_date cannot be before the planned start date")
+
+    if body.status == MilestoneStatus.complete and ms.status != MilestoneStatus.complete:
+        # A milestone cannot finish before what it depends on, otherwise a site could be green-lit early.
+        open_preds = _open_predecessors(session, ms)
+        if open_preds:
+            names = ", ".join(p.name for p in open_preds)
+            raise HTTPException(409, detail={
+                "detail": f"Cannot complete {ms.name}: waiting on {names}",
+                "code": "unsatisfied_dependencies",
+                "open_predecessor_ids": [p.id for p in open_preds],
+            })
 
     now = datetime.now(timezone.utc)
     changes: list[tuple[EventType, str | None, str | None]] = []
@@ -67,10 +91,13 @@ def update_milestone(milestone_id: int, body: MilestoneUpdate, session: Session 
                         body.due_date.isoformat() if body.due_date else None))
         ms.due_date = body.due_date
 
+    # Keep the reason a milestone was blocked in its history; it is cleared from the row once unblocked.
+    status_note = body.note or (ms.blocked_reason if ms.status == MilestoneStatus.blocked else None)
     events = [
         m.MilestoneEvent(milestone_id=ms.id, changed_by_user_id=body.changed_by_user_id, event_type=kind,
-                         old_value=old, new_value=new, note=body.note, occurred_at=now,
-                         source_type=ms.source_type)
+                         old_value=old, new_value=new,
+                         note=status_note if kind == EventType.status_change else body.note,
+                         occurred_at=now, source_type=ms.source_type)
         for kind, old, new in changes
     ]
     if not events and (body.note or reason_changed):

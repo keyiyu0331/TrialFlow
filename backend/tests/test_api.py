@@ -175,6 +175,55 @@ def test_completing_green_light_activates_the_site(client):
     assert r.json()["trial_site_activation_status"] == "in_startup"
 
 
+def test_cannot_complete_a_milestone_with_open_predecessors(client):
+    """Regression: GREEN_LIGHT used to be completable at 60% readiness, activating the site early."""
+    row = site_by_scenario(client, "on_track_mid")
+    detail = client.get(f"/trial-sites/{row['id']}").json()
+    green = milestone(detail, "GREEN_LIGHT")
+    open_ids = sorted(
+        m["id"] for m in detail["milestones"] if m["template_code"] in ("SIV",) and m["status"] != "complete"
+    )
+    r = client.patch(f"/milestones/{green['id']}", json={"status": "complete"})
+    assert r.status_code == 409 and r.json()["code"] == "unsatisfied_dependencies"
+    assert r.json()["open_predecessor_ids"] == open_ids
+    after = client.get(f"/trial-sites/{row['id']}").json()
+    assert after["activation_status"] == "in_startup" and after["actual_activation_date"] is None
+    assert milestone(after, "GREEN_LIGHT")["status"] == green["status"]
+
+
+def test_not_applicable_predecessor_does_not_block_completion(client):
+    row = site_by_scenario(client, "na_pharmacy", nct="NCT06312176")
+    detail = client.get(f"/trial-sites/{row['id']}").json()
+    pharmacy = milestone(detail, "PHARMACY_SETUP")
+    assert pharmacy["status"] == "not_applicable"
+    ship = milestone(detail, "DRUG_SHIPMENT")
+    r = client.patch(f"/milestones/{ship['id']}", json={"status": "complete"})
+    # Whatever else is open, a not_applicable predecessor counts as satisfied and is never reported.
+    assert pharmacy["id"] not in r.json().get("open_predecessor_ids", [])
+
+
+def test_blocked_reason_is_kept_in_the_event_note(client):
+    row = site_by_scenario(client, "on_track_early")
+    ms = milestone(client.get(f"/trial-sites/{row['id']}").json(), "IRB_APPROVAL")
+    r = client.patch(f"/milestones/{ms['id']}", json={"status": "blocked", "blocked_reason": "Legal redlines"})
+    event = r.json()["events"][0]
+    assert event["event_type"] == "status_change" and event["note"] == "Legal redlines"
+    # The reason survives unblocking, because it lives in history, not only on the row.
+    r = client.patch(f"/milestones/{ms['id']}", json={"status": "in_progress"})
+    assert r.json()["milestone"]["blocked_reason"] is None
+    notes = [e["note"] for e in client.get(f"/trial-sites/{row['id']}/events").json()["items"]]
+    assert "Legal redlines" in notes
+
+
+def test_explicit_note_wins_over_blocked_reason(client):
+    row = site_by_scenario(client, "on_track_early")
+    ms = milestone(client.get(f"/trial-sites/{row['id']}").json(), "IRB_APPROVAL")
+    r = client.patch(f"/milestones/{ms['id']}", json={"status": "blocked", "blocked_reason": "Legal redlines",
+                                                      "note": "Raised on Monday call"})
+    assert r.json()["events"][0]["note"] == "Raised on Monday call"
+    assert r.json()["milestone"]["blocked_reason"] == "Legal redlines"
+
+
 def test_patch_with_no_change_writes_no_events(client):
     row = site_by_scenario(client, "contract_stall")
     contract = milestone(client.get(f"/trial-sites/{row['id']}").json(), "CONTRACT_EXECUTED")

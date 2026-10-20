@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { TrialSiteSummary } from "@/lib/api";
 import { fmtDate, location, plural, roleLabel } from "@/lib/format";
-import { DelayChip, HealthChip, SourceTag } from "./Chips";
+import { HealthChip } from "./Chips";
 
 /** One segment per milestone: satisfied first, then the blocker (if any), then the rest. */
 function Strip({ site }: { site: TrialSiteSummary }) {
@@ -27,14 +27,9 @@ function Row({ site }: { site: TrialSiteSummary }) {
       <div>
         <div className="site-row__name">{site.site.name}</div>
         <div className="site-row__loc">{location(site.site) || "Location not listed"}</div>
-        <div className="site-row__tags">
-          <SourceTag source={site.site.source_type} what="Site" />
-          <SourceTag source={site.source_type} what="Activation" />
-        </div>
       </div>
       <div>
         <HealthChip health={site.health} />
-        {site.health === "activated" && <div className="cell-sub">Activated {fmtDate(site.actual_activation_date)}</div>}
         {site.activation_status === "on_hold" && <div className="cell-sub">On hold</div>}
       </div>
       <div className="readiness">
@@ -51,23 +46,13 @@ function Row({ site }: { site: TrialSiteSummary }) {
           <>
             <div className="cell-main">{b.milestone_name}</div>
             <div className="cell-sub">
-              {b.days_overdue > 0 ? <span className="late">{plural(b.days_overdue, "day")} late</span> : "Blocked"}{" "}
-              {b.delay_level !== "on_time" && <DelayChip level={b.delay_level} />}
+              {b.days_overdue > 0 && <span className="late">{plural(b.days_overdue, "day")} late</span>}
+              {b.days_overdue > 0 && owner && " · "}
+              {owner && `${owner.name}, ${roleLabel(owner.role)}`}
             </div>
-            {b.downstream_unsatisfied > 0 && <div className="cell-sub">Holds up {b.downstream_unsatisfied} later milestones</div>}
           </>
         ) : (
-          <span className="faint">{site.health === "activated" ? "None" : "Nothing blocking"}</span>
-        )}
-      </div>
-      <div>
-        {owner ? (
-          <>
-            <div className="cell-main">{owner.name}</div>
-            <div className="cell-sub">{roleLabel(owner.role)}</div>
-          </>
-        ) : (
-          <span className="faint">—</span>
+          <span className="faint">{site.health === "activated" ? "Activated" : "Nothing blocking"}</span>
         )}
       </div>
       <div>
@@ -87,8 +72,7 @@ export default function SiteTable({ sites }: { sites: TrialSiteSummary[] }) {
         <span>Trial site</span>
         <span>Health</span>
         <span>Readiness</span>
-        <span>Top blocker</span>
-        <span>Next action</span>
+        <span>Blocker and owner</span>
         <span>Projected activation</span>
       </div>
       {sites.map((s) => (

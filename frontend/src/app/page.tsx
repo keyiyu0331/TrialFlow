@@ -131,15 +131,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         </div>
 
         {tracked.length > 1 && (
-          <div className="trials">
+          <div className="filter-group" style={{ marginBottom: 18 }}>
+            <span className="label">Trial</span>
             {tracked.map((t) => (
-              <Link key={t.id} href={href({ trial: String(t.id) })} className={`card trial-card ${t.id === chosen.id ? "trial-card--active" : ""}`}>
-                <span className="label">{t.nct_id}</span>
-                <div className="trial-card__title">{t.title}</div>
-                <div className="trial-card__foot">
-                  <span>{t.sponsor_name ?? "Sponsor not listed"}</span>
-                  <span>{t.activation_counts.in_startup} in start-up</span>
-                </div>
+              <Link key={t.id} href={href({ trial: String(t.id) })} className={`pill ${t.id === chosen.id ? "pill--active" : ""}`}>
+                {t.acronym ?? t.nct_id} · {t.activation_counts.in_startup} in start-up
               </Link>
             ))}
           </div>
@@ -147,24 +143,19 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
         <div className="stats">
           {HEALTHS.map((h) => (
-            <div key={h} className={`card stat stat--${h}`}>
+            <Link
+              key={h}
+              href={href({ ...base, health: health === h ? undefined : h, delay })}
+              className={`card stat stat--${h} ${health === h ? "stat--on" : ""}`}
+              aria-pressed={health === h}
+            >
               <div className="label">{HEALTH_LABEL[h]}</div>
               <div className="stat__num">{counts[h]}</div>
-              <div className="stat__hint">{{ blocked: "A blocker is overdue or flagged", at_risk: "Projected past target", on_track: "Nothing blocking yet", activated: "Green light complete" }[h]}</div>
-            </div>
+            </Link>
           ))}
         </div>
 
         <div className="filters">
-          <div className="filter-group">
-            <span className="label">Health</span>
-            <Link href={href({ ...base, delay: delay })} className={`pill ${!health ? "pill--active" : ""}`}>All</Link>
-            {HEALTHS.map((h) => (
-              <Link key={h} href={href({ ...base, health: h, delay })} className={`pill ${health === h ? "pill--active" : ""}`}>
-                {HEALTH_LABEL[h]}
-              </Link>
-            ))}
-          </div>
           <div className="filter-group">
             <span className="label">Delay</span>
             <Link href={href({ ...base, health })} className={`pill ${!delay ? "pill--active" : ""}`}>Any</Link>
@@ -186,7 +177,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               </Link>
             ))}
           </div>
+          {(health || delay) && (
+            <Link href={href({ trial: String(chosen.id), sort: base.sort })} className="pill">Clear filters</Link>
+          )}
         </div>
+
+        <p className="data-note">Sites are real ClinicalTrials.gov records. Milestones, owners and dates are synthetic demo data.</p>
 
         {visible.length === 0 ? (
           <div className="card empty">

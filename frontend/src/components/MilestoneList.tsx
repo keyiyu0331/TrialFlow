@@ -78,16 +78,12 @@ export default function MilestoneList({ milestones }: { milestones: Milestone[] 
         <div className="mrow" key={m.id}>
           <div>
             <div className="mrow__name">{m.name}</div>
-            <div className="label" style={{ marginTop: 4 }}>
-              {m.workstream}
-            </div>
             {m.status === "blocked" && m.blocked_reason && <div className="mrow__reason">{m.blocked_reason}</div>}
           </div>
           <div>
             <span className="status" data-s={m.status}>
               {STATUS_LABEL[m.status]}
             </span>
-            {m.is_ready && m.status === "not_started" && <div className="cell-sub">Ready to start</div>}
             {m.is_impacted && m.status !== "complete" && <div className="cell-sub late">Pushed out by upstream delay</div>}
           </div>
           <div>

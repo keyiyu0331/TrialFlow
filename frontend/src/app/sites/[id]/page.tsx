@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DelayChip, HealthChip, SourceTag } from "@/components/Chips";
+import { DelayChip, HealthChip } from "@/components/Chips";
 import DependencyGraph from "@/components/DependencyGraph";
 import History from "@/components/History";
 import MilestoneList from "@/components/MilestoneList";
@@ -50,10 +50,10 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
           <div className="detail-head__chips">
             <HealthChip health={site.health} />
             {site.delay_level !== "on_time" && <DelayChip level={site.delay_level} />}
-            <SourceTag source={site.site.source_type} what="Site" />
-            <SourceTag source={site.source_type} what="Activation" />
-            {site.scenario_label && <span className="tag">Scenario: {site.scenario_label}</span>}
           </div>
+          <p className="data-note" style={{ marginTop: 14, marginBottom: 0 }}>
+            Real registry site. Milestones, owners and dates are synthetic demo data.
+          </p>
         </div>
       </div>
 
@@ -95,36 +95,6 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
       <section className="card panel">
         <div className="panel__head">
           <div>
-            <div className="label">Dependencies</div>
-            <h2 className="panel__title">What is waiting on what</h2>
-          </div>
-          <div className="legend">
-            <span><i style={{ background: "rgba(91,63,184,0.35)" }} />Complete</span>
-            <span><i style={{ background: "#fff", border: "1.5px solid var(--purple-2)" }} />In progress</span>
-            <span><i style={{ background: "rgba(193,69,106,0.25)", border: "1.5px solid var(--blocked)" }} />Blocking</span>
-          </div>
-        </div>
-        <DependencyGraph graph={graph} />
-      </section>
-
-      <section className="card panel">
-        <div className="panel__head">
-          <div>
-            <div className="label">Schedule</div>
-            <h2 className="panel__title">Plan vs. projected finish</h2>
-          </div>
-          <div className="legend">
-            <span><i style={{ background: "rgba(124,91,209,0.4)" }} />Planned</span>
-            <span><i style={{ background: "rgba(193,69,106,0.5)" }} />Late or blocked</span>
-            <span><i style={{ background: "repeating-linear-gradient(45deg, rgba(193,69,106,0.6) 0 2px, transparent 2px 5px)" }} />Projected slip</span>
-          </div>
-        </div>
-        <Timeline milestones={site.milestones} />
-      </section>
-
-      <section className="card panel">
-        <div className="panel__head">
-          <div>
             <div className="label">Milestones</div>
             <h2 className="panel__title">Update status</h2>
           </div>
@@ -132,15 +102,51 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
         <MilestoneList milestones={site.milestones} />
       </section>
 
-      <section className="card panel" style={{ marginBottom: 56 }}>
-        <div className="panel__head">
-          <div>
-            <div className="label">History</div>
-            <h2 className="panel__title">Recent changes</h2>
+      <details className="card panel" open>
+        <summary>
+          <div className="panel__head">
+            <div>
+              <div className="label">Dependencies</div>
+              <h2 className="panel__title">What is waiting on what</h2>
+            </div>
           </div>
+        </summary>
+        <div className="legend" style={{ marginBottom: 14 }}>
+          <span><i style={{ background: "rgba(91,63,184,0.35)" }} />Complete</span>
+          <span><i style={{ background: "#fff", border: "1.5px solid var(--purple-2)" }} />In progress</span>
+          <span><i style={{ background: "rgba(193,69,106,0.25)", border: "1.5px solid var(--blocked)" }} />Blocking</span>
         </div>
-        <History events={events.items} />
-      </section>
+        <DependencyGraph graph={graph} />
+      </details>
+
+      <details className="card panel">
+        <summary>
+          <div className="panel__head">
+            <div>
+              <div className="label">Schedule</div>
+              <h2 className="panel__title">Plan vs. projected finish</h2>
+            </div>
+          </div>
+        </summary>
+        <div className="legend" style={{ marginBottom: 14 }}>
+          <span><i style={{ background: "rgba(124,91,209,0.4)" }} />Planned</span>
+          <span><i style={{ background: "rgba(193,69,106,0.5)" }} />Late or blocked</span>
+          <span><i style={{ background: "repeating-linear-gradient(45deg, rgba(193,69,106,0.6) 0 2px, transparent 2px 5px)" }} />Projected slip</span>
+        </div>
+        <Timeline milestones={site.milestones} />
+      </details>
+
+      <details className="card panel" style={{ marginBottom: 56 }}>
+        <summary>
+          <div className="panel__head">
+            <div>
+              <div className="label">History</div>
+              <h2 className="panel__title">Recent changes ({events.total})</h2>
+            </div>
+          </div>
+        </summary>
+        <History events={events.items.slice(0, 12)} />
+      </details>
     </>
   );
 }

@@ -76,6 +76,32 @@ def delay_level(days_overdue: int) -> DelayLevel:
     return DelayLevel.over_30
 
 
+def find_path(edges: list[Edge], start: int, goal: int) -> list[int] | None:
+    """Shortest path from ``start`` to ``goal`` following predecessor -> successor edges.
+
+    Returns the milestone ids including both ends, or None if ``goal`` is unreachable.
+    """
+    successors: dict[int, list[int]] = defaultdict(list)
+    for pred, succ in edges:
+        successors[pred].append(succ)
+    parent: dict[int, int | None] = {start: None}
+    queue = deque([start])
+    while queue:
+        node = queue.popleft()
+        if node == goal:
+            path = []
+            current: int | None = node
+            while current is not None:
+                path.append(current)
+                current = parent[current]
+            return path[::-1]
+        for nxt in successors[node]:
+            if nxt not in parent:
+                parent[nxt] = node
+                queue.append(nxt)
+    return None
+
+
 def would_create_cycle(edges: list[Edge], predecessor_id: int, successor_id: int) -> bool:
     """True if adding predecessor -> successor closes a cycle.
 
@@ -84,20 +110,7 @@ def would_create_cycle(edges: list[Edge], predecessor_id: int, successor_id: int
     """
     if predecessor_id == successor_id:
         return True
-    successors: dict[int, list[int]] = defaultdict(list)
-    for pred, succ in edges:
-        successors[pred].append(succ)
-    seen: set[int] = set()
-    stack = [successor_id]
-    while stack:
-        node = stack.pop()
-        if node == predecessor_id:
-            return True
-        if node in seen:
-            continue
-        seen.add(node)
-        stack.extend(successors[node])
-    return False
+    return find_path(edges, successor_id, predecessor_id) is not None
 
 
 def analyze(milestones: list[MilestoneInput], edges: list[Edge], as_of: date) -> SiteAnalysis:

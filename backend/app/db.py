@@ -30,3 +30,20 @@ def make_engine(url: str = DATABASE_URL, **kwargs):
 
 
 SessionLocal = sessionmaker(autoflush=False, expire_on_commit=False)
+
+_engine = None
+
+
+def get_engine():
+    """The app-wide engine, created on first use from DATABASE_URL."""
+    global _engine
+    if _engine is None:
+        kwargs = {"connect_args": {"check_same_thread": False}} if DATABASE_URL.startswith("sqlite") else {}
+        _engine = make_engine(DATABASE_URL, **kwargs)
+    return _engine
+
+
+def get_session():
+    """FastAPI dependency: one session per request."""
+    with SessionLocal(bind=get_engine()) as session:
+        yield session

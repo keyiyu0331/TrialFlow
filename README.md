@@ -13,12 +13,12 @@ Before a site can enroll patients it must complete about ten milestones: IRB app
 | Real trial and site data (ClinicalTrials.gov API v2) | ✅ 25 trials, 1,715 site records in `data/` |
 | Architecture and tech stack | ✅ `docs/architecture.md` |
 | Database schema (SQLAlchemy models + constraints) | ✅ `backend/app/models.py`, `docs/schema.md` |
-| REST API design + stub endpoints | ✅ `docs/api-design.md`, browsable at `/docs` |
-| Synthetic activation data (seed script) | ⏳ next |
-| Readiness, blocker, and dependency-cycle logic | ⏳ planned |
-| Frontend (Next.js / React / TypeScript) | ⏳ planned |
+| REST API, database-backed | ✅ `docs/api-design.md`, browsable at `/docs` |
+| Registry importer and synthetic activation seed | ✅ `scripts/import_registry.py`, `scripts/seed.py` |
+| Readiness, blocker, and dependency-cycle logic | ✅ `backend/app/services/readiness.py`, `docs/domain-rules.md` |
+| Frontend (Next.js / React / TypeScript) | ✅ dashboard, trial site detail with dependency graph, timeline, and milestone updates |
 
-The API endpoints currently return **placeholder data**; they are not connected to a database yet.
+The demo data is labeled: trials and sites are real registry records; milestones, owners, dates, and history are synthetic.
 
 ## Real vs. synthetic data
 
@@ -73,6 +73,20 @@ uvicorn app.main:app --reload   # start the API
 ```
 
 Then open http://localhost:8000/docs to browse the API.
+
+To run the full demo (SQLite locally; PostgreSQL is the production target), from the repo root:
+
+```bash
+export DATABASE_URL=sqlite:///trialflow.db
+python scripts/import_registry.py     # 25 trials, 1,662 sites, 1,715 trial sites
+python scripts/seed.py --reset        # labeled synthetic milestones for 18 trial sites
+cd backend && uvicorn app.main:app --reload
+
+# in a second terminal
+cd frontend && npm install && npm run dev   # http://localhost:3000
+```
+
+The frontend reads `API_URL` (server) and `NEXT_PUBLIC_API_URL` (browser); see `frontend/.env.example`. "Today" is the server date, and the seed dates are relative to it.
 
 The tests use an in-memory SQLite database, so they need no setup. The app targets PostgreSQL; set `DATABASE_URL` (default `postgresql+psycopg://localhost/trialflow`) once the database is connected.
 

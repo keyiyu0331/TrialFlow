@@ -82,3 +82,12 @@ class DelayLevel(str, Enum):
     days_1_7 = "1_7"
     days_8_30 = "8_30"
     over_30 = "over_30"
+
+
+class SiteHealth(str, Enum):
+    """Dashboard state of one trial site. Computed from its milestones; never stored."""
+
+    activated = "activated"
+    blocked = "blocked"
+    at_risk = "at_risk"
+    on_track = "on_track"

@@ -20,6 +20,7 @@ Paths marked *(planned)* do not exist yet; they show where new code should go.
 
 ## Source-of-truth docs
 - `docs/schema.md`: final schema and rules
+- `docs/domain-rules.md`: precise, testable definitions of blocking, top blocker, slip, and health *(proposed)*
 - `docs/api-design.md`: endpoint table and examples. Keep it concise; it feeds a 2-page technical spec.
 - `docs/data-mapping.md`: API v2 JSON paths → columns, with data-quality flags
 - `docs/site-activation-research.md`: milestones, dependencies, delay benchmarks

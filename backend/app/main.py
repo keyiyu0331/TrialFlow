@@ -1,5 +1,8 @@
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .routers import catalog, milestones, trial_sites, trials
@@ -7,12 +10,21 @@ from .routers.common import VALIDATION_ERROR
 
 app = FastAPI(
     title="TrialFlow API",
-    version="0.1.0",
+    version="0.2.0",
     description=(
         "Clinical trial site activation tracking. Trials and sites are real "
         "ClinicalTrials.gov records; milestones, owners, and history are synthetic "
-        "(see `source_type` on every object). **Endpoints are stubs returning placeholder data.**"
+        "(see `source_type` on every object). Readiness, blockers, delay, and health "
+        "are computed at request time from the dependency graph."
     ),
+)
+
+# The Next.js dev server runs on another origin. Override with CORS_ORIGINS (comma-separated).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(","),
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

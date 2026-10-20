@@ -1,22 +1,23 @@
-"""Milestone and dependency endpoints. STUB: nothing is persisted."""
+"""Milestone and dependency edits. Every status, owner, or due-date change writes an event."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy.orm import Session, joinedload
 
-from .. import placeholders as ph
-from ..enums import (
-    SATISFIED_STATUSES,
-    ActivationStatus,
-    DelayLevel,
-    EventType,
-    MilestoneStatus,
-    SourceType,
-)
-from ..schemas import ErrorResponse, EventOut, MilestoneUpdate, MilestoneUpdateResult
+from .. import models as m
+from ..db import get_session
+from ..deps import get_today
+from ..enums import ActivationStatus, EventType, MilestoneStatus
+from ..schemas import ErrorResponse, MilestoneUpdate, MilestoneUpdateResult
+from ..services import readiness, views
 from .common import NOT_FOUND, not_found
 
 router = APIRouter(tags=["milestones"])
+
+
+def _unprocessable(code: str, detail: str) -> HTTPException:
+    return HTTPException(422, detail={"detail": detail, "code": code})
 
 
 @router.patch(
@@ -25,60 +26,74 @@ router = APIRouter(tags=["milestones"])
     responses={**NOT_FOUND, 422: {"model": ErrorResponse, "description": "Invalid change"}},
     summary="Change status, owner, or due date; writes one event per changed field",
 )
-def update_milestone(milestone_id: int, body: MilestoneUpdate):
-    current = ph.milestone(milestone_id)
-    if current is None:
+def update_milestone(milestone_id: int, body: MilestoneUpdate, session: Session = Depends(get_session),
+                     today: date = Depends(get_today)):
+    ms = session.get(m.Milestone, milestone_id,
+                     options=[joinedload(m.Milestone.template), joinedload(m.Milestone.owner)])
+    if ms is None:
         raise not_found("Milestone", milestone_id)
-    if body.owner_user_id is not None and ph.owner(body.owner_user_id) is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"detail": "Unknown owner_user_id", "code": "unknown_user"})
+    fields = body.model_fields_set
+    if body.owner_user_id is not None and session.get(m.User, body.owner_user_id) is None:
+        raise _unprocessable("unknown_user", "Unknown owner_user_id")
+    if body.changed_by_user_id is not None and session.get(m.User, body.changed_by_user_id) is None:
+        raise _unprocessable("unknown_user", "Unknown changed_by_user_id")
+    if body.due_date and ms.planned_start_date and body.due_date < ms.planned_start_date:
+        raise _unprocessable("invalid_due_date", "due_date cannot be before the planned start date")
 
     now = datetime.now(timezone.utc)
-    changes = {}
-    updated = current.model_copy()
-    if "status" in body.model_fields_set and body.status != current.status:
-        changes[EventType.status_change] = (current.status.value, body.status.value)
-        updated.status = body.status
-        updated.status_changed_at = now
-        updated.completed_at = now if body.status == MilestoneStatus.complete else None
-        updated.days_in_status = 0
+    changes: list[tuple[EventType, str | None, str | None]] = []
+    was_complete = ms.status == MilestoneStatus.complete
+
+    if "status" in fields and body.status is not None and body.status != ms.status:
+        changes.append((EventType.status_change, ms.status.value, body.status.value))
+        ms.status, ms.status_changed_at = body.status, now
+        ms.completed_at = now if body.status == MilestoneStatus.complete else None
+        if ms.started_at is None and body.status in (MilestoneStatus.in_progress, MilestoneStatus.blocked,
+                                                    MilestoneStatus.complete):
+            ms.started_at = now
         if body.status != MilestoneStatus.blocked:
-            updated.blocked_reason = None
-        if body.status in SATISFIED_STATUSES:
-            updated.is_overdue, updated.days_overdue = False, 0
-            updated.delay_level, updated.is_blocking = DelayLevel.on_time, False
-    if "owner_user_id" in body.model_fields_set and body.owner_user_id != (
-        current.owner.id if current.owner else None
-    ):
-        changes[EventType.owner_change] = (
-            str(current.owner.id) if current.owner else None,
-            str(body.owner_user_id) if body.owner_user_id is not None else None,
-        )
-        updated.owner = ph.owner(body.owner_user_id)
-    if "due_date" in body.model_fields_set and body.due_date != current.due_date:
-        changes[EventType.due_date_change] = (
-            current.due_date.isoformat() if current.due_date else None,
-            body.due_date.isoformat() if body.due_date else None,
-        )
-        updated.due_date = body.due_date
-    if "blocked_reason" in body.model_fields_set:
-        updated.blocked_reason = body.blocked_reason
-    # TODO: recompute is_overdue / delay_level / is_blocking in the readiness service.
+            ms.blocked_reason = None
+    reason_changed = False
+    if "blocked_reason" in fields and ms.status == MilestoneStatus.blocked and body.blocked_reason != ms.blocked_reason:
+        ms.blocked_reason, reason_changed = body.blocked_reason, True
+    if "owner_user_id" in fields and body.owner_user_id != ms.owner_user_id:
+        changes.append((EventType.owner_change,
+                        str(ms.owner_user_id) if ms.owner_user_id is not None else None,
+                        str(body.owner_user_id) if body.owner_user_id is not None else None))
+        ms.owner_user_id = body.owner_user_id
+    if "due_date" in fields and body.due_date != ms.due_date:
+        changes.append((EventType.due_date_change,
+                        ms.due_date.isoformat() if ms.due_date else None,
+                        body.due_date.isoformat() if body.due_date else None))
+        ms.due_date = body.due_date
 
     events = [
-        EventOut(id=9100 + i, milestone_id=milestone_id, milestone_name=current.name,
-                 event_type=etype, old_value=old, new_value=new, note=body.note,
-                 changed_by=ph.owner(body.changed_by_user_id), occurred_at=now,
-                 source_type=SourceType.synthetic)
-        for i, (etype, (old, new)) in enumerate(changes.items(), start=1)
+        m.MilestoneEvent(milestone_id=ms.id, changed_by_user_id=body.changed_by_user_id, event_type=kind,
+                         old_value=old, new_value=new, note=body.note, occurred_at=now,
+                         source_type=ms.source_type)
+        for kind, old, new in changes
     ]
-    activation = (
-        ActivationStatus.activated
-        if current.template_code == "GREEN_LIGHT" and updated.status == MilestoneStatus.complete
-        else ph.TRIAL_SITE_SUMMARY.activation_status
+    if not events and (body.note or reason_changed):
+        events.append(m.MilestoneEvent(milestone_id=ms.id, changed_by_user_id=body.changed_by_user_id,
+                                       event_type=EventType.note, new_value=ms.blocked_reason if reason_changed else None,
+                                       note=body.note, occurred_at=now, source_type=ms.source_type))
+    session.add_all(events)
+
+    trial_site = session.get(m.TrialSite, ms.trial_site_id)
+    if ms.template and ms.template.code == readiness.GREEN_LIGHT_CODE:
+        if ms.status == MilestoneStatus.complete and not was_complete:
+            trial_site.activation_status, trial_site.actual_activation_date = ActivationStatus.activated, today
+        elif was_complete and ms.status != MilestoneStatus.complete and trial_site.activation_status == ActivationStatus.activated:
+            trial_site.activation_status, trial_site.actual_activation_date = ActivationStatus.in_startup, None
+    session.commit()
+
+    bundle = views.load_bundles(session, [trial_site], today)[trial_site.id]
+    session.refresh(ms)
+    return MilestoneUpdateResult(
+        milestone=views.milestone_out(bundle.by_id[ms.id], bundle, now),
+        events=[views.event_out(e) for e in events],
+        trial_site_activation_status=trial_site.activation_status,
     )
-    return MilestoneUpdateResult(milestone=updated, events=events,
-                                 trial_site_activation_status=activation)
 
 
 @router.delete(
@@ -88,7 +103,10 @@ def update_milestone(milestone_id: int, body: MilestoneUpdate):
     tags=["trial sites"],
     summary="Remove a milestone dependency",
 )
-def delete_dependency(dependency_id: int):
-    if not any(d.id == dependency_id for d in ph.DEPENDENCIES):
+def delete_dependency(dependency_id: int, session: Session = Depends(get_session)):
+    dep = session.get(m.MilestoneDependency, dependency_id)
+    if dep is None:
         raise not_found("Dependency", dependency_id)
+    session.delete(dep)
+    session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -99,4 +99,7 @@ A dependency conflict on POST returns:
 `409 {"detail": "Adding 1010 → 1002 would create a cycle", "code": "dependency_cycle", "cycle_path": [1002, 1009, 1010, 1002]}`
 
 ## Not yet implemented
-The stubs return data from `backend/app/placeholders.py`. Still to build: the DB-backed queries, blocker and next-action computation, cycle detection, transactional event writes, template instantiation, and authentication (none in the MVP; `changed_by_user_id` is passed in the body).
+Authentication (none in the MVP; `changed_by_user_id` is passed in the body).
+
+## Computed fields added by the readiness service
+These are derived on read (see `docs/domain-rules.md`), never stored: trial site `health`, `site_slip_days`, `projected_activation_date`; blocker `blocked_reason`, `downstream_unsatisfied`; milestone `is_ready`, `projected_finish`, `slip_days`, `is_impacted`; graph node `is_ready`, `is_impacted`.

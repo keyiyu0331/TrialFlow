@@ -11,11 +11,10 @@ trial, site, **trial site** (one site in one trial; the unit we activate), miles
 ## Codebase map
 Paths marked *(planned)* do not exist yet; they show where new code should go.
 - `backend/app/`: `models.py` (tables), `enums.py`, `schemas.py` (API shapes), `routers/` (endpoints), `db.py`, `main.py`
-- `backend/app/placeholders.py`: synthetic placeholder data the router stubs return. Delete it once the routers query the DB.
-- `backend/app/services/`: `readiness.py` is done (pure functions for ready, blocking, top blocker, slip, health, cycle check; see `docs/domain-rules.md`). *(planned)* template instantiation, event writes. Keep routers thin.
-- `backend/tests/`: pytest; `conftest.py` provides the SQLite `session` and `world` fixtures.
-- `scripts/`: `run_extraction.ps1` (wrapper; `extract_trials.py` is missing). *(planned)* `import_registry.py`, `seed.py`.
-- `frontend/` *(planned)*: Next.js/React/TypeScript.
+- `backend/app/services/`: `readiness.py` (pure functions: ready, blocking, top blocker, slip, health, cycle check; see `docs/domain-rules.md`), `templates.py` (template instantiation), `registry_import.py`, `seeding.py` (scenarios), `views.py` (API shapes). Keep routers thin.
+- `backend/tests/`: pytest; `conftest.py` provides the SQLite `session`, `world`, `seeded`, and `client` fixtures.
+- `scripts/`: `import_registry.py`, `seed.py` (`--as-of`, `--reset`), `run_extraction.ps1` (wrapper; `extract_trials.py` is missing).
+- `frontend/`: Next.js 16 App Router + TypeScript; `src/lib/api.ts` (typed client), `src/components/`, pages `/`, `/trials`, `/sites/[id]`. Plain CSS in `globals.css`.
 - `data/raw_25_studies.json`: the real registry pull (source of truth).
 
 ## Source-of-truth docs
@@ -30,8 +29,8 @@ Paths marked *(planned)* do not exist yet; they show where new code should go.
 ## Build and run
 - Python 3.11+: `python -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt`
 - Dev server: `cd backend && uvicorn app.main:app --reload`, then open http://localhost:8000/docs
-- Database: `DATABASE_URL` (default `postgresql+psycopg://localhost/trialflow`). *(planned)* `python scripts/import_registry.py`, then `python scripts/seed.py`.
-- Frontend *(planned)*: `cd frontend && npm install && npm run dev`
+- Database: `DATABASE_URL` (default `postgresql+psycopg://localhost/trialflow`). Then `python scripts/import_registry.py` and `python scripts/seed.py --reset` (use `DATABASE_URL=sqlite:///trialflow.db` locally).
+- Frontend: `cd frontend && npm install && npm run dev` (http://localhost:3000; `npm run typecheck`, `npm run build`)
 
 ## Code style
 - Type hints everywhere. SQLAlchemy 2 `Mapped[...]` / `mapped_column` style; Pydantic 2 models live in `schemas.py`.
@@ -43,7 +42,7 @@ Paths marked *(planned)* do not exist yet; they show where new code should go.
 
 ## Testing
 - `cd backend && pytest` runs on SQLite in-memory with FK enforcement; no database setup needed.
-- Constraint tests are in `tests/test_models.py`; the API contract is in `tests/test_api_stubs.py`. Add a test with each new rule or endpoint.
+- Constraint tests are in `tests/test_models.py`; the API contract is in `tests/test_api.py`. Add a test with each new rule or endpoint.
 - Smoke test: start the dev server, `curl localhost:8000/health`, then try `GET /trials/1/sites` and `PATCH /milestones/{id}` in `/docs`.
 - *(planned)* Playwright e2e: dashboard → milestone update → dashboard reflects the change.
 
@@ -72,6 +71,6 @@ Paths marked *(planned)* do not exist yet; they show where new code should go.
 - *(planned LLM)* Send only filtered, structured status with no personal data. LLM output is a suggestion, never a status change.
 
 ## Status / next steps
-- Done: schema, models, Pydantic schemas, router stubs, constraint tests.
-- Next: seed script (synthetic milestones for 10–20 trial sites, scenarios such as `contract_stall` and `irb_delay`), importer, DB-backed routers, cycle detection, readiness/blocker service.
-- Open: does drug shipment also need an executed contract? `scripts/extract_trials.py` is missing; the wrapper `scripts/run_extraction.ps1` calls it and writes outputs to its working directory, not `data/`.
+- Done: schema, models, readiness service, importer, seed (18 scenario trial sites), DB-backed API, frontend dashboard and trial site detail.
+- Next: Playwright e2e, PostgreSQL run-through, trial-site creation endpoint use of templates from the UI, LLM suggestion layer (optional).
+- Open: does drug shipment also need an executed contract? Top-blocker ordering and delay thresholds (`docs/domain-rules.md`) need team sign-off. `scripts/extract_trials.py` is missing; the wrapper `scripts/run_extraction.ps1` calls it and writes outputs to its working directory, not `data/`.

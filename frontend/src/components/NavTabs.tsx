@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/", label: "Dashboard", match: (p: string) => p === "/" || p.startsWith("/sites") },
+  { href: "/tasks", label: "My tasks", match: (p: string) => p.startsWith("/tasks") },
   { href: "/trials", label: "Trials", match: (p: string) => p.startsWith("/trials") },
 ];
 

@@ -7,7 +7,7 @@ import { DELAY_SHORT, STATUS_LABEL, fmtDate, plural, roleLabel } from "@/lib/for
 
 const STATUSES = Object.keys(STATUS_LABEL) as MilestoneStatus[];
 
-function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
+export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
   const router = useRouter();
   const [status, setStatus] = useState<MilestoneStatus>(m.status);
   const [reason, setReason] = useState(m.blocked_reason ?? "");

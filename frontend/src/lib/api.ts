@@ -237,3 +237,17 @@ export async function updateMilestone(id: number, body: MilestoneUpdate): Promis
     return `Could not reach the API at ${BROWSER_API}`;
   }
 }
+
+export const getSiteDetails = (ids: number[]) => Promise.all(ids.map(getSite));
+
+/** Every tracked trial with its dashboard rows and per-site detail (milestones). */
+export async function getTrackedWorld() {
+  const trials = trackedTrials((await getTrials()).items);
+  return Promise.all(
+    trials.map(async (trial) => {
+      const rows = (await getDashboard(trial.id)).items;
+      const details = await getSiteDetails(rows.map((r) => r.id));
+      return { trial, rows, details };
+    }),
+  );
+}

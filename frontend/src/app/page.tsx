@@ -1,9 +1,12 @@
 import Link from "next/link";
+import AttentionList from "@/components/AttentionList";
 import Orbit from "@/components/Orbit";
 import SiteTable from "@/components/SiteTable";
+import TrialSummary from "@/components/TrialSummary";
 import {
   ApiUnreachable,
   getDashboard,
+  getSiteDetails,
   getTrial,
   getTrials,
   trackedTrials,
@@ -11,9 +14,15 @@ import {
   type SiteHealth,
   type TrialSiteSummary,
 } from "@/lib/api";
-import { DELAY_LABEL, HEALTH_LABEL } from "@/lib/format";
+import { DELAY_LABEL, HEALTH_LABEL, location } from "@/lib/format";
+import { URGENT, openTasks, trialInsight } from "@/lib/insights";
 
-type Search = { trial?: string; health?: string; delay?: string; sort?: string };
+type Search = { trial?: string; health?: string; delay?: string; sort?: string; status?: string; q?: string };
+
+const STATUSES = [
+  { key: "in_startup", label: "In start-up" },
+  { key: "on_hold", label: "On hold" },
+];
 
 const HEALTHS: SiteHealth[] = ["blocked", "at_risk", "on_track", "activated"];
 const DELAYS: DelayLevel[] = ["1_7", "8_30", "over_30"];
@@ -72,12 +81,26 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const delay = DELAYS.find((d) => d === sp.delay);
   const sort = SORTS.find((s) => s.key === sp.sort)?.key ?? "-delay";
 
+  const status = STATUSES.find((x) => x.key === sp.status)?.key;
+  const q = (sp.q ?? "").trim().slice(0, 80);
+
   const [trial, page] = await Promise.all([getTrial(chosen.id), getDashboard(chosen.id, { sort })]);
   const all = page.items;
+  const details = await getSiteDetails(all.filter((r) => r.activation_status === "in_startup").map((r) => r.id));
+  const insight = trialInsight(all, details);
+  const urgent = openTasks(details).filter((t) => URGENT.includes(t.kind));
   const counts = Object.fromEntries(HEALTHS.map((h) => [h, all.filter((s) => s.health === h).length])) as Record<SiteHealth, number>;
-  const visible: TrialSiteSummary[] = all.filter((s) => (!health || s.health === health) && (!delay || s.delay_level === delay));
+  const needle = q.toLowerCase();
+  const visible: TrialSiteSummary[] = all.filter(
+    (s) =>
+      (!health || s.health === health) &&
+      (!delay || s.delay_level === delay) &&
+      (!status || s.activation_status === status) &&
+      (!needle || `${s.site.name} ${location(s.site)}`.toLowerCase().includes(needle)),
+  );
   const worst = Math.max(0, ...all.map((s) => s.top_blocker?.days_overdue ?? 0));
-  const base = { trial: String(chosen.id), sort: sort === "-delay" ? undefined : sort };
+  const base = { trial: String(chosen.id), sort: sort === "-delay" ? undefined : sort, q: q || undefined };
+  const filtered = !!(health || delay || status || q);
 
   return (
     <>
@@ -145,7 +168,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           {HEALTHS.map((h) => (
             <Link
               key={h}
-              href={href({ ...base, health: health === h ? undefined : h, delay })}
+              href={href({ ...base, health: health === h ? undefined : h, delay, status })}
               className={`card stat stat--${h} ${health === h ? "stat--on" : ""}`}
               aria-pressed={health === h}
             >
@@ -155,12 +178,42 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           ))}
         </div>
 
+        <div className="insights">
+          <div className="card panel">
+            <div className="label">Trial summary</div>
+            <TrialSummary insight={insight} />
+          </div>
+          <div className="card panel">
+            <div className="label">Needs attention</div>
+            <AttentionList tasks={urgent.slice(0, 5)} total={urgent.length} />
+          </div>
+        </div>
+
+        <form action="/" method="get" className="search" role="search">
+          <input type="hidden" name="trial" value={chosen.id} />
+          {base.sort && <input type="hidden" name="sort" value={base.sort} />}
+          {health && <input type="hidden" name="health" value={health} />}
+          {delay && <input type="hidden" name="delay" value={delay} />}
+          {status && <input type="hidden" name="status" value={status} />}
+          <input name="q" defaultValue={q} placeholder="Search site, city, or state" aria-label="Search sites" />
+          <button className="btn" type="submit">Search</button>
+        </form>
+
         <div className="filters">
           <div className="filter-group">
+            <span className="label">Status</span>
+            <Link href={href({ ...base, health, delay })} className={`pill ${!status ? "pill--active" : ""}`}>Any</Link>
+            {STATUSES.map((x) => (
+              <Link key={x.key} href={href({ ...base, health, delay, status: x.key })} className={`pill ${status === x.key ? "pill--active" : ""}`}>
+                {x.label}
+              </Link>
+            ))}
+          </div>
+          <div className="filter-group">
             <span className="label">Delay</span>
-            <Link href={href({ ...base, health })} className={`pill ${!delay ? "pill--active" : ""}`}>Any</Link>
+            <Link href={href({ ...base, health, status })} className={`pill ${!delay ? "pill--active" : ""}`}>Any</Link>
             {DELAYS.map((d) => (
-              <Link key={d} href={href({ ...base, health, delay: d })} className={`pill ${delay === d ? "pill--active" : ""}`}>
+              <Link key={d} href={href({ ...base, health, delay: d, status })} className={`pill ${delay === d ? "pill--active" : ""}`}>
                 {DELAY_LABEL[d]}
               </Link>
             ))}
@@ -170,14 +223,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             {SORTS.map((s) => (
               <Link
                 key={s.key}
-                href={href({ trial: String(chosen.id), sort: s.key === "-delay" ? undefined : s.key, health, delay })}
+                href={href({ trial: String(chosen.id), sort: s.key === "-delay" ? undefined : s.key, health, delay, status, q: q || undefined })}
                 className={`pill ${sort === s.key ? "pill--active" : ""}`}
               >
                 {s.label}
               </Link>
             ))}
           </div>
-          {(health || delay) && (
+          {filtered && (
             <Link href={href({ trial: String(chosen.id), sort: base.sort })} className="pill">Clear filters</Link>
           )}
         </div>
@@ -187,7 +240,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         {visible.length === 0 ? (
           <div className="card empty">
             <h3>No trial sites match</h3>
-            <p>Try clearing a filter.</p>
+            <p>Try clearing a filter or search.</p>
           </div>
         ) : (
           <SiteTable sites={visible} />

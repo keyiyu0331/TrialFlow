@@ -349,6 +349,7 @@ h1, h2, h3, p { margin: 0; }
   .hero { grid-template-columns: 1fr; }
   .orbit { margin: 8px auto 0; width: min(100%, 520px); }
   .stats, .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .insights { grid-template-columns: 1fr; }
   .sites__head { display: none; }
   .site-row { grid-template-columns: 1fr 1fr; gap: 12px 20px; }
   .site-row > :first-child { grid-column: 1 / -1; }
@@ -378,3 +379,25 @@ details.panel > summary::after { content: "Show"; font-family: var(--font-mono);
 details.panel[open] > summary::after { content: "Hide"; }
 details.panel[open] > summary { margin-bottom: 18px; }
 details.panel .panel__head { margin: 0; }
+
+/* insights: summary + alerts */
+.insights { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 12px; margin-bottom: 18px; }
+.insights .panel { margin-bottom: 0; padding: 18px 20px; }
+.summary { margin: 12px 0 0; display: grid; gap: 12px; }
+.summary dt { margin: 0 0 3px; }
+.summary dd { margin: 0; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.4; }
+.link { color: var(--purple); font-weight: 600; }
+.link:hover { text-decoration: underline; }
+.attn { list-style: none; margin: 10px 0 0; padding: 0; }
+.attn li + li { border-top: 1px solid var(--line); }
+.attn__row { display: flex; gap: 14px; align-items: flex-start; padding: 11px 0; transition: background 0.15s; }
+.attn__row:hover .cell-main { color: var(--purple); }
+.attn__row .chip { flex: none; margin-top: 2px; min-width: 84px; justify-content: flex-start; }
+.attn__main { display: grid; gap: 3px; min-width: 0; }
+.attn__more { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--purple); }
+
+/* search + selects */
+.search { display: flex; gap: 8px; margin-bottom: 12px; max-width: 460px; }
+.search input, .select { padding: 9px 12px; background: rgba(255, 255, 255, 0.85); border: 1px solid var(--line-strong); border-radius: var(--radius); font-size: 14px; min-width: 0; }
+.search input { flex: 1; }
+.select { max-width: 360px; cursor: pointer; }

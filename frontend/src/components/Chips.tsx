@@ -1,5 +1,6 @@
 import type { DelayLevel, SiteHealth, SourceType } from "@/lib/api";
 import { DELAY_SHORT, HEALTH_LABEL } from "@/lib/format";
+import { TASK_LABEL, type TaskKind } from "@/lib/insights";
 
 export function HealthChip({ health }: { health: SiteHealth }) {
   return <span className={`chip chip--${health}`}>{HEALTH_LABEL[health]}</span>;
@@ -18,4 +19,17 @@ export function SourceTag({ source, what }: { source: SourceType; what?: string 
       {real ? "Registry" : "Synthetic"}
     </span>
   );
+}
+
+const TASK_CLASS: Record<TaskKind, string> = {
+  blocked: "blocked",
+  overdue: "8_30",
+  due_soon: "at_risk",
+  in_progress: "activated",
+  ready: "on_track",
+  waiting: "on_time",
+};
+
+export function TaskChip({ kind }: { kind: TaskKind }) {
+  return <span className={`chip chip--${TASK_CLASS[kind]}`}>{TASK_LABEL[kind]}</span>;
 }

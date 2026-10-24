@@ -14,7 +14,7 @@ Paths marked *(planned)* do not exist yet; they show where new code should go.
 - `backend/app/services/`: `readiness.py` (pure functions: ready, blocking, top blocker, slip, health, cycle check; see `docs/domain-rules.md`), `templates.py` (template instantiation), `registry_import.py`, `seeding.py` (scenarios), `views.py` (API shapes). Keep routers thin.
 - `backend/tests/`: pytest; `conftest.py` provides the SQLite `session`, `world`, `seeded`, and `client` fixtures.
 - `scripts/`: `import_registry.py`, `seed.py` (`--as-of`, `--reset`), `run_extraction.ps1` (wrapper; `extract_trials.py` is missing).
-- `frontend/`: Next.js 16 App Router + TypeScript; `src/lib/api.ts` (typed client), `src/components/`, pages `/`, `/trials`, `/sites/[id]`. Plain CSS in `globals.css`.
+- `frontend/`: Next.js 16 App Router + TypeScript; `src/lib/api.ts` (typed client), `src/components/`, pages `/` (search, status/delay filters, trial summary, needs-attention), `/tasks` (My tasks), `/trials`, `/sites/[id]`; `src/lib/insights.ts` derives tasks and summaries from the API (no new endpoints). Plain CSS in `globals.css`.
 - `data/raw_25_studies.json`: the real registry pull (source of truth).
 
 ## Source-of-truth docs

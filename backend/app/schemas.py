@@ -16,6 +16,7 @@ from .enums import (
     EventType,
     MilestoneStatus,
     RecruitmentStatus,
+    SiteHealth,
     SourceType,
     UserRole,
     Workstream,
@@ -138,6 +139,10 @@ class BlockerSummary(BaseModel):
     days_overdue: int
     delay_level: DelayLevel
     owner: OwnerRef | None
+    blocked_reason: str | None = None
+    downstream_unsatisfied: int = Field(
+        default=0, description="Computed: later milestones that cannot finish until this one does"
+    )
 
 
 class MilestoneOut(ORMModel):
@@ -161,6 +166,10 @@ class MilestoneOut(ORMModel):
     delay_level: DelayLevel
     days_in_status: int
     is_blocking: bool
+    is_ready: bool = Field(default=False, description="Computed: unfinished, and every predecessor is satisfied")
+    projected_finish: date | None = Field(default=None, description="Computed: null for not_applicable")
+    slip_days: int = Field(default=0, description="Computed: days the projected finish is after the due date")
+    is_impacted: bool = Field(default=False, description="Computed: unfinished and projected to slip")
     source_type: SourceType
 
 
@@ -232,6 +241,11 @@ class TrialSiteSummary(ORMModel):
     delay_level: DelayLevel = Field(description="Worst delay level among open milestones")
     top_blocker: BlockerSummary | None
     next_action_owner: OwnerRef | None
+    health: SiteHealth = Field(description="Computed: activated, blocked, at_risk, or on_track")
+    site_slip_days: int = Field(default=0, description="Computed: projected green light minus its due date")
+    projected_activation_date: date | None = Field(
+        default=None, description="Computed: projected green light date, from the dependency graph"
+    )
 
 
 class TrialSiteDetail(TrialSiteSummary):
@@ -256,6 +270,8 @@ class GraphNode(BaseModel):
     is_satisfied: bool
     is_overdue: bool
     is_blocking: bool
+    is_ready: bool = False
+    is_impacted: bool = False
 
 
 class GraphEdge(BaseModel):

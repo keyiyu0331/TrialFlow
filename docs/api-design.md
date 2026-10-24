@@ -12,7 +12,7 @@ FastAPI, JSON. Interactive docs are at `/docs`. Stubs live in `backend/app/route
 | GET | `/trial-sites/{id}` | One trial site with all its milestones | — |
 | GET | `/trial-sites/{id}/graph` | **Dependency graph:** nodes, edges, blocking flags | — |
 | GET | `/trial-sites/{id}/events` | Change-history timeline, newest first | `milestone_id`, `event_type`*, `since`, `limit`, `offset` |
-| PATCH | `/milestones/{id}` | **Update status, owner, or due date;** writes one event per changed field | body: `status`, `owner_user_id`, `due_date`, `blocked_reason`, `note`, `changed_by_user_id` |
+| PATCH | `/milestones/{id}` | **Update status, owner, or due date;** writes one event per changed field; a `blocked` status change keeps `blocked_reason` as its note; `complete` is rejected (409) while predecessors are open | body: `status`, `owner_user_id`, `due_date`, `blocked_reason`, `note`, `changed_by_user_id` |
 | POST | `/trial-sites/{id}/dependencies` | Add a dependency. **409** for `dependency_cycle`, `cross_trial_site`, or `duplicate_dependency` | body: `predecessor_id`, `successor_id` |
 | DELETE | `/dependencies/{id}` | Remove a dependency (204) | — |
 | GET | `/templates` | Default milestone checklist with predecessor codes | — |
@@ -20,7 +20,7 @@ FastAPI, JSON. Interactive docs are at `/docs`. Stubs live in `backend/app/route
 
 \* can be repeated, e.g. `?delay_level=8_30&delay_level=over_30`.
 
-**Status codes:** 200/201/204 on success; 404 `not_found`; 409 on dependency conflicts; 422 `validation_error` for an invalid body, path, or query parameter (e.g. an empty PATCH, `blocked` without `blocked_reason`, a self-dependency, or `limit=0`). 422 uses the same `{detail, code}` shape as every other error. `detail` joins the messages with `; ` and prefixes each with its field (`due_date: Input should be a valid date`). Path and query fields get `path.`/`query.` prefixes (`query.limit: …`). Business-rule 422s keep their own code, e.g. `unknown_user`.
+**Status codes:** 200/201/204 on success; 404 `not_found`; 409 on dependency conflicts, including `unsatisfied_dependencies` when PATCH tries to complete a milestone whose predecessors are still open (body lists `open_predecessor_ids`); 422 `validation_error` for an invalid body, path, or query parameter (e.g. an empty PATCH, `blocked` without `blocked_reason`, a self-dependency, or `limit=0`). 422 uses the same `{detail, code}` shape as every other error. `detail` joins the messages with `; ` and prefixes each with its field (`due_date: Input should be a valid date`). Path and query fields get `path.`/`query.` prefixes (`query.limit: …`). Business-rule 422s keep their own code, e.g. `unknown_user`.
 
 ## Key examples
 These are trimmed versions of the stub output. The trial and site are real (NCT07578116, Smilow Derby); the milestones and owners are synthetic.
@@ -99,4 +99,7 @@ A dependency conflict on POST returns:
 `409 {"detail": "Adding 1010 → 1002 would create a cycle", "code": "dependency_cycle", "cycle_path": [1002, 1009, 1010, 1002]}`
 
 ## Not yet implemented
-The stubs return data from `backend/app/placeholders.py`. Still to build: the DB-backed queries, blocker and next-action computation, cycle detection, transactional event writes, template instantiation, and authentication (none in the MVP; `changed_by_user_id` is passed in the body).
+Authentication (none in the MVP; `changed_by_user_id` is passed in the body).
+
+## Computed fields added by the readiness service
+These are derived on read (see `docs/domain-rules.md`), never stored: trial site `health`, `site_slip_days`, `projected_activation_date`; blocker `blocked_reason`, `downstream_unsatisfied`; milestone `is_ready`, `projected_finish`, `slip_days`, `is_impacted`; graph node `is_ready`, `is_impacted`.

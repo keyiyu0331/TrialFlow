@@ -5,6 +5,7 @@ import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "./globals.css";
 import Logo from "@/components/Logo";
+import AskTrialFlow from "@/components/AskTrialFlow";
 import NavTabs from "@/components/NavTabs";
 
 export const metadata: Metadata = {
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </footer>
         </div>
+        <AskTrialFlow />
       </body>
     </html>
   );

@@ -28,6 +28,16 @@ export default function AskTrialFlow() {
   }, []);
   useEffect(() => end.current?.scrollIntoView({ block: "end" }), [msgs, busy]);
 
+  const askRef = useRef<(t: string) => void>(() => {});
+  useEffect(() => {
+    const on = (e: Event) => {
+      setOpen(true);
+      setTimeout(() => askRef.current(String((e as CustomEvent).detail ?? "")), 0);
+    };
+    window.addEventListener("tf:ask", on);
+    return () => window.removeEventListener("tf:ask", on);
+  }, []);
+
   async function ask(text: string) {
     const question = text.trim();
     if (!question || busy) return;
@@ -43,6 +53,8 @@ export default function AskTrialFlow() {
     }
     setBusy(false);
   }
+
+  askRef.current = ask;
 
   if (!open) {
     return (

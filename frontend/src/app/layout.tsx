@@ -5,6 +5,7 @@ import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "./globals.css";
 import Logo from "@/components/Logo";
+import CommandPalette from "@/components/CommandPalette";
 import AskTrialFlow from "@/components/AskTrialFlow";
 import NavTabs from "@/components/NavTabs";
 import { SessionProvider } from "@/components/SessionProvider";
@@ -31,25 +32,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body>
         <SessionProvider me={{ id: user.id, name: user.name, role: user.role, sponsor }}>
-        <div className="bg" aria-hidden="true">
-          <div className="bg__grid" />
-          <div className="bg__glow" />
-          <div className="bg__glow bg__glow--2" />
-          <div className="bg__line" />
-        </div>
         <div className="wrap">
           <header className="topbar">
-            <Link href="/" aria-label="TrialFlow home">
+            <Link href={sponsor ? "/" : "/tasks"} aria-label="TrialFlow home">
               <Logo />
             </Link>
+            <NavTabs sponsor={sponsor} />
             <div className="topbar__right">
-              <span className="btn-ghost" title="Trials and sites are real; activation data is synthetic">
-                Demo data
-              </span>
+              <span className="tag" title="Trials and sites are real; activation data is synthetic">Demo data</span>
+              <CommandPalette />
               <UserMenu user={user} />
             </div>
           </header>
-          <NavTabs sponsor={sponsor} />
           <main>{children}</main>
           <footer className="footer">
             <div>

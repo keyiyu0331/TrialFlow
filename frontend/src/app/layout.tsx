@@ -7,16 +7,30 @@ import "./globals.css";
 import Logo from "@/components/Logo";
 import AskTrialFlow from "@/components/AskTrialFlow";
 import NavTabs from "@/components/NavTabs";
+import { SessionProvider } from "@/components/SessionProvider";
+import UserMenu from "@/components/UserMenu";
+import { getSession } from "@/lib/session";
+import { isSponsor } from "@/lib/session-token";
 
 export const metadata: Metadata = {
   title: "TrialFlow · Site activation readiness",
   description: "See which milestone is blocking each trial site, and who owns the next action.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getSession();
+  if (!user) {
+    return (
+      <html lang="en">
+        <body>{children}</body>
+      </html>
+    );
+  }
+  const sponsor = isSponsor(user.role);
   return (
     <html lang="en">
       <body>
+        <SessionProvider me={{ id: user.id, name: user.name, role: user.role, sponsor }}>
         <div className="bg" aria-hidden="true">
           <div className="bg__grid" />
           <div className="bg__glow" />
@@ -32,13 +46,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="btn-ghost" title="Trials and sites are real; activation data is synthetic">
                 Demo data
               </span>
-              <span className="avatar" title="Study start-up manager (synthetic user)">
-                SM
-                <span className="avatar__dot" />
-              </span>
+              <UserMenu user={user} />
             </div>
           </header>
-          <NavTabs />
+          <NavTabs sponsor={sponsor} />
           <main>{children}</main>
           <footer className="footer">
             <div>
@@ -50,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </footer>
         </div>
         <AskTrialFlow />
+        </SessionProvider>
       </body>
     </html>
   );

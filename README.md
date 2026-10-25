@@ -115,3 +115,12 @@ See `docs/api-design.md` for all 11 endpoints with examples.
 ## Team
 
 See `docs/work-split.md` for responsibilities and completed work.
+
+## Sign-in (demo)
+
+The frontend has a working sign-in with two roles. It is demo-grade: the accounts are the synthetic users in the seed data, they all share one password, and the **backend does not enforce roles yet** (a follow-up for the API).
+
+- **Start-up manager** (sponsor/CRO staff): every site, the daily brief, trials, and can update any milestone.
+- **Site staff**: only their own site's tasks and pages, and can update only milestones they own. Updates are recorded as the signed-in user.
+- Demo accounts: one-click buttons on the sign-in page, or any seeded user's email (e.g. `priya.nair@example.org`) with the password `trialflow`.
+- Config (environment variables, never committed): `TRIALFLOW_DEMO_PASSWORD` (default `trialflow`) and `AUTH_SECRET` (signs the session cookie; set a long random value outside local use).

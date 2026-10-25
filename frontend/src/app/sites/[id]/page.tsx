@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { DelayChip, HealthChip } from "@/components/Chips";
 import DependencyGraph from "@/components/DependencyGraph";
 import History from "@/components/History";
@@ -7,6 +7,8 @@ import MilestoneList from "@/components/MilestoneList";
 import Timeline from "@/components/Timeline";
 import { ApiError, ApiUnreachable, getEvents, getGraph, getSite } from "@/lib/api";
 import { fmtDate, location, plural, roleLabel } from "@/lib/format";
+import { getSession } from "@/lib/session";
+import { isSponsor } from "@/lib/session-token";
 
 export default async function SitePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -28,6 +30,8 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
     throw e;
   }
   const [site, graph, events] = data;
+  const user = await getSession();
+  if (user && !isSponsor(user.role) && site.site.id !== user.siteId) redirect("/tasks");
   const b = site.top_blocker;
   const owner = site.next_action_owner;
 

@@ -3,6 +3,8 @@ import PersonSelect from "@/components/PersonSelect";
 import TaskList from "@/components/TaskList";
 import { ApiUnreachable, getTrackedWorld } from "@/lib/api";
 import { roleLabel } from "@/lib/format";
+import { getSession } from "@/lib/session";
+import { isSponsor } from "@/lib/session-token";
 import { TASK_LABEL, openTasks, peopleFrom, type TaskKind } from "@/lib/insights";
 
 export const metadata = { title: "My tasks · TrialFlow" };
@@ -18,6 +20,8 @@ function href(p: Record<string, string | undefined>) {
 
 export default async function Tasks({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
+  const user = await getSession();
+  const sponsor = !user || isSponsor(user.role);
   let world;
   try {
     world = await getTrackedWorld();
@@ -32,12 +36,15 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<Se
     throw e;
   }
 
-  const all = openTasks(world.flatMap((w) => w.details));
+  // Site staff only ever see their own site; by default just their own tasks.
+  const siteDetails = world.flatMap((w) => w.details).filter((d) => sponsor || d.site.id === user?.siteId);
+  const all = openTasks(siteDetails);
+  const everyone = sp.person === "all";
   const people = peopleFrom(all);
   const roles = [...new Set(people.map((p) => p.role))].sort();
   const role = roles.find((r) => r === sp.role);
   const inRole = role ? people.filter((p) => p.role === role) : people;
-  const person = inRole.find((p) => String(p.id) === sp.person);
+  const person = sponsor ? inRole.find((p) => String(p.id) === sp.person) : everyone ? undefined : inRole.find((p) => p.id === user?.id) ?? { id: user!.id, name: user!.name, role: user!.role, team_name: null, tasks: 0 };
   const kind = (Object.keys(TASK_LABEL) as TaskKind[]).find((k) => k === sp.kind);
 
   const scoped = all.filter(
@@ -59,14 +66,26 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<Se
     <section className="section" style={{ paddingTop: 48 }}>
       <div className="section__head">
         <div>
-          <div className="label">Site staff</div>
-          <h1 className="section__title">My tasks</h1>
+          <div className="label">{sponsor ? "Everyone's open work" : "Your site"}</div>
+          <h1 className="section__title">{sponsor ? "My tasks" : `Hi ${user?.name.split(" ")[0]}, here is your list`}</h1>
           <p className="section__sub">
-            Open milestones assigned to each person, most urgent first. Pick yourself, update a status, and the dashboard recomputes.
+            {sponsor
+              ? "Open milestones assigned to each person, most urgent first. Pick someone, update a status, and the dashboard recomputes."
+              : "Your open milestones, most urgent first. You can update the ones you own. Switch to see what everyone else at your site is working on."}
           </p>
         </div>
       </div>
 
+      {!sponsor && (
+        <div className="filters">
+          <div className="filter-group">
+            <span className="label">Show</span>
+            <Link href={href({ kind: sp.kind })} className={`pill ${!everyone ? "pill--active" : ""}`}>Mine</Link>
+            <Link href={href({ person: "all", kind: sp.kind })} className={`pill ${everyone ? "pill--active" : ""}`}>Everyone at my site</Link>
+          </div>
+        </div>
+      )}
+      {sponsor && (
       <div className="filters">
         <div className="filter-group">
           <span className="label">Role</span>
@@ -82,6 +101,7 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<Se
           <PersonSelect options={options} value={person ? String(person.id) : ""} />
         </div>
       </div>
+      )}
       <div className="filters">
         <div className="filter-group">
           <span className="label">Show</span>

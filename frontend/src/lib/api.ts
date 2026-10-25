@@ -196,6 +196,16 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  site_id: number | null;
+  team_name: string | null;
+}
+export const getUsers = () => get<User[]>("/users");
+
 export const getTrials = () => get<Page<TrialSummary>>("/trials?limit=500");
 export const getTrial = (id: number) => get<TrialDetail>(`/trials/${id}`);
 export const getSite = (id: number) => get<TrialSiteDetail>(`/trial-sites/${id}`);

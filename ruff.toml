@@ -5,3 +5,7 @@ extend-exclude = ["data", "frontend", ".venv"]
 
 [lint]
 select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "B008",  # FastAPI's Depends()/Query() defaults are the framework idiom
+    "UP042", # StrEnum changes str(member); enums.py keeps (str, Enum) on purpose
+]

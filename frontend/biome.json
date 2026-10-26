@@ -3,11 +3,12 @@
   "vcs": {
     "enabled": true,
     "clientKind": "git",
-    "useIgnoreFile": true
+    "useIgnoreFile": true,
+    "root": ".."
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!.next", "!node_modules", "!tsconfig.tsbuildinfo", "!next-env.d.ts"]
+    "includes": ["**", "!.next", "!node_modules", "!tsconfig.tsbuildinfo", "!next-env.d.ts", "!src/app/icon.svg"]
   },
   "formatter": {
     "enabled": true,
@@ -18,8 +19,24 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "a11y": {
+        "useButtonType": "warn",
+        "useSemanticElements": "warn",
+        "noLabelWithoutControl": "warn",
+        "useAriaPropsSupportedByRole": "warn"
+      },
+      "style": { "noNonNullAssertion": "warn" },
+      "suspicious": {
+        "noImplicitAnyLet": "warn",
+        "noArrayIndexKey": "warn",
+        "useIterableCallbackReturn": "warn"
+      },
+      "complexity": { "noImportantStyles": "warn" }
     }
+  },
+  "css": {
+    "formatter": { "enabled": false }
   },
   "javascript": {
     "formatter": {

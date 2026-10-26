@@ -8,7 +8,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!.next", "!node_modules", "!tsconfig.tsbuildinfo", "!next-env.d.ts", "!src/app/icon.svg"]
+    "includes": ["**", "!.next", "!node_modules", "!tsconfig.tsbuildinfo", "!next-env.d.ts", "!src/app/icon.svg", "!tsconfig.json"]
   },
   "formatter": {
     "enabled": true,

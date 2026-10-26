@@ -1,0 +1,34 @@
+# Run once after setup: pre-commit install
+# data/ is registry input and .claude/skills/ is vendored verbatim, so no hook rewrites them.
+exclude: ^(data/|\.claude/skills/)
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.2
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]  # two trailing spaces are a Markdown line break
+      - id: end-of-file-fixer
+      - id: check-json
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: biome
+        name: biome check (frontend)
+        # Biome reads frontend/biome.json relative to the working directory, so run it from frontend/.
+        entry: bash -c 'cd frontend && node_modules/.bin/biome check --write --no-errors-on-unmatched "${@#frontend/}"' --
+        language: system
+        files: ^frontend/
+        types_or: [ts, tsx, javascript, jsx, json]

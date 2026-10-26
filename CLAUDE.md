@@ -1,6 +1,6 @@
 # TrialFlow
 
-Clinical trial site-activation tracker (CS 146S project, due Dec 10, 2026). For each **trial site** (one site in one trial; the unit we activate) it shows a study start-up manager readiness, the milestone blocking it, and who owns the next action. Trials and sites are real ClinicalTrials.gov data; milestones, owners, dependencies, and events are labeled synthetic. Terms: trial, site, trial site, milestone, dependency, blocker, green light.
+Clinical trial site-activation tracker. For each **trial site** (one site in one trial; the unit we activate) it shows a study start-up manager readiness, the milestone blocking it, and who owns the next action. Trials and sites are real ClinicalTrials.gov data; milestones, owners, dependencies, and events are labeled synthetic. Terms: trial, site, trial site, milestone, dependency, blocker, green light.
 
 ## Architecture
 - `backend/app/` (FastAPI + SQLAlchemy 2): `routers/` stay thin → `services/` → `models.py`. `schemas.py` is the API contract; `enums.py` is the only place enums live (shared by models, schemas, services).
@@ -32,6 +32,6 @@ Before changing an area, read its doc and update it in the same change: `docs/do
 - Never infer activation from `reported_recruitment_status` (all 25 trials are RECRUITING; in-start-up trial sites are synthetic).
 - Never import or display registry location contacts (real people). Never hand-edit `data/raw_25_studies.json`. Never write to ClinicalTrials.gov.
 - API v2 has no stable location ID: keys are `ctgov_location_index` and `sites.dedup_key`; placeholder names ("Research Site") use `nct_id:index` and are never merged. Expect 25 trials / 1,662 sites / 1,715 trial sites.
-- Without `DATABASE_URL`, everything targets `postgresql+psycopg://localhost/trialflow`. A relative SQLite URL resolves against the current directory, so don't `cd backend` before `uvicorn` or it opens an empty DB.
+- Without `DATABASE_URL`, everything targets `postgresql+psycopg://localhost/trialflow`. A relative SQLite URL resolves against the current directory, so don't `cd backend` before `uvicorn`: it creates an empty `backend/trialflow.db` and every request fails with `no such table`.
 - Don't run `scripts/run_extraction.ps1`: the `extract_trials.py` it calls is missing.
 - Secrets come from env vars only (`.env*` is gitignored). Planned LLM layer: send only structured status with no personal data; its output is a suggestion, never a status change.

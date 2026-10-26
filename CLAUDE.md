@@ -11,12 +11,12 @@ Clinical trial site-activation tracker. For each **trial site** (one site in one
 Before changing an area, read its doc and update it in the same change: `docs/domain-rules.md` (rule definitions), `docs/schema.md` (tables), `docs/api-design.md` (endpoints), `docs/data-mapping.md` (registry JSON → columns), `docs/SYSTEM_OVERVIEW.md` (diagrams).
 
 ## Commands (from repo root)
-- Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt`
+- Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt && pre-commit install`
 - Tests: `cd backend && pytest` (in-memory SQLite, no setup). One file: `cd backend && pytest tests/test_readiness.py`
 - Load data: `export DATABASE_URL=sqlite:///trialflow.db && python scripts/import_registry.py && python scripts/seed.py --reset` (`--as-of YYYY-MM-DD` pins the scenario dates)
 - API: `uvicorn app.main:app --app-dir backend --reload` → http://localhost:8000/docs, `curl localhost:8000/health`
 - Frontend: `cd frontend && npm install && npm run dev` (port 3000); check with `npm run typecheck && npm run build`
-- No linter or formatter is configured.
+- Lint/format: `ruff check . && ruff format .` (Python, config in `ruff.toml`); `cd frontend && npm run lint` (`npm run format` to fix). Hooks in `.claude/settings.json` format each edit and block finishing while ruff, pytest, Biome, or typecheck fail; see `.claude/hooks/README.md`.
 
 ## Conventions
 - Errors: `HTTPException` with body `{"detail", "code"}` (e.g. `not_found`, `dependency_cycle`, `unsatisfied_dependencies`); `main.py` converts validation errors to `validation_error`.

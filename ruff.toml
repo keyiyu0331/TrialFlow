@@ -1,0 +1,7 @@
+# Python lint and format for backend/, scripts/, and .claude/hooks/.
+line-length = 120
+target-version = "py311"
+extend-exclude = ["data", "frontend", ".venv"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]

@@ -20,7 +20,9 @@ export const isSponsor = (role: string) => SPONSOR_ROLES.has(role);
 const sign = (payload: string) => createHmac("sha256", SECRET).update(payload).digest("base64url");
 
 export function encodeSession(user: SessionUser): string {
-  const payload = Buffer.from(JSON.stringify({ ...user, exp: Math.floor(Date.now() / 1000) + MAX_AGE })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ ...user, exp: Math.floor(Date.now() / 1000) + MAX_AGE })).toString(
+    "base64url",
+  );
   return `${payload}.${sign(payload)}`;
 }
 

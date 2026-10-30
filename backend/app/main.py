@@ -43,8 +43,7 @@ async def _validation_error_body(request, exc: RequestValidationError):
         msg = err["msg"].removeprefix("Value error, ")
         loc = ".".join(str(p) for p in err["loc"] if p != "body")
         messages.append(f"{loc}: {msg}" if loc else msg)
-    return JSONResponse(status_code=422,
-                        content={"detail": "; ".join(messages), "code": "validation_error"})
+    return JSONResponse(status_code=422, content={"detail": "; ".join(messages), "code": "validation_error"})
 
 
 # VALIDATION_ERROR replaces the default HTTPValidationError schema in the OpenAPI spec.

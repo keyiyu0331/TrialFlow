@@ -3,9 +3,9 @@ import PersonSelect from "@/components/PersonSelect";
 import TaskList from "@/components/TaskList";
 import { ApiUnreachable, getTrackedWorld } from "@/lib/api";
 import { roleLabel } from "@/lib/format";
+import { openTasks, peopleFrom, TASK_LABEL, type TaskKind } from "@/lib/insights";
 import { getSession } from "@/lib/session";
 import { isSponsor } from "@/lib/session-token";
-import { TASK_LABEL, openTasks, peopleFrom, type TaskKind } from "@/lib/insights";
 
 export const metadata = { title: "My tasks · TrialFlow" };
 
@@ -44,14 +44,26 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<Se
   const roles = [...new Set(people.map((p) => p.role))].sort();
   const role = roles.find((r) => r === sp.role);
   const inRole = role ? people.filter((p) => p.role === role) : people;
-  const person = sponsor ? inRole.find((p) => String(p.id) === sp.person) : everyone ? undefined : inRole.find((p) => p.id === user?.id) ?? { id: user!.id, name: user!.name, role: user!.role, team_name: null, tasks: 0 };
+  const person = sponsor
+    ? inRole.find((p) => String(p.id) === sp.person)
+    : everyone
+      ? undefined
+      : (inRole.find((p) => p.id === user?.id) ?? {
+          id: user!.id,
+          name: user!.name,
+          role: user!.role,
+          team_name: null,
+          tasks: 0,
+        });
   const kind = (Object.keys(TASK_LABEL) as TaskKind[]).find((k) => k === sp.kind);
 
   const scoped = all.filter(
     (t) => (!role || t.milestone.owner?.role === role) && (!person || t.milestone.owner?.id === person.id),
   );
   const shown = scoped.filter((t) => !kind || t.kind === kind);
-  const counts = (Object.keys(TASK_LABEL) as TaskKind[]).map((k) => [k, scoped.filter((t) => t.kind === k).length] as const);
+  const counts = (Object.keys(TASK_LABEL) as TaskKind[]).map(
+    (k) => [k, scoped.filter((t) => t.kind === k).length] as const,
+  );
 
   const options = [
     { value: "", label: `Everyone${role ? ` (${roleLabel(role)})` : ""}`, href: href({ role, kind: sp.kind }) },
@@ -67,7 +79,9 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<Se
       <div className="section__head">
         <div>
           <div className="label">{sponsor ? "Everyone's open work" : "Your site"}</div>
-          <h1 className="section__title">{sponsor ? "My tasks" : `Hi ${user?.name.split(" ")[0]}, here is your list`}</h1>
+          <h1 className="section__title">
+            {sponsor ? "My tasks" : `Hi ${user?.name.split(" ")[0]}, here is your list`}
+          </h1>
           <p className="section__sub">
             {sponsor
               ? "Open milestones assigned to each person, most urgent first. Pick someone, update a status, and the dashboard recomputes."
@@ -80,32 +94,45 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<Se
         <div className="filters">
           <div className="filter-group">
             <span className="label">Show</span>
-            <Link href={href({ kind: sp.kind })} className={`pill ${!everyone ? "pill--active" : ""}`}>Mine</Link>
-            <Link href={href({ person: "all", kind: sp.kind })} className={`pill ${everyone ? "pill--active" : ""}`}>Everyone at my site</Link>
+            <Link href={href({ kind: sp.kind })} className={`pill ${!everyone ? "pill--active" : ""}`}>
+              Mine
+            </Link>
+            <Link href={href({ person: "all", kind: sp.kind })} className={`pill ${everyone ? "pill--active" : ""}`}>
+              Everyone at my site
+            </Link>
           </div>
         </div>
       )}
       {sponsor && (
-      <div className="filters">
-        <div className="filter-group">
-          <span className="label">Role</span>
-          <Link href={href({ kind: sp.kind })} className={`pill ${!role ? "pill--active" : ""}`}>All</Link>
-          {roles.map((r) => (
-            <Link key={r} href={href({ role: r, kind: sp.kind })} className={`pill ${role === r ? "pill--active" : ""}`}>
-              {roleLabel(r)}
+        <div className="filters">
+          <div className="filter-group">
+            <span className="label">Role</span>
+            <Link href={href({ kind: sp.kind })} className={`pill ${!role ? "pill--active" : ""}`}>
+              All
             </Link>
-          ))}
+            {roles.map((r) => (
+              <Link
+                key={r}
+                href={href({ role: r, kind: sp.kind })}
+                className={`pill ${role === r ? "pill--active" : ""}`}
+              >
+                {roleLabel(r)}
+              </Link>
+            ))}
+          </div>
+          <div className="filter-group">
+            <span className="label">Person</span>
+            <PersonSelect options={options} value={person ? String(person.id) : ""} />
+          </div>
         </div>
-        <div className="filter-group">
-          <span className="label">Person</span>
-          <PersonSelect options={options} value={person ? String(person.id) : ""} />
-        </div>
-      </div>
       )}
       <div className="filters">
         <div className="filter-group">
           <span className="label">Show</span>
-          <Link href={href({ role, person: person && String(person.id) })} className={`pill ${!kind ? "pill--active" : ""}`}>
+          <Link
+            href={href({ role, person: person && String(person.id) })}
+            className={`pill ${!kind ? "pill--active" : ""}`}
+          >
             All ({scoped.length})
           </Link>
           {counts
@@ -131,7 +158,11 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<Se
       ) : (
         <div className="card panel">
           <TaskList tasks={shown.slice(0, LIMIT)} showOwner={!person} />
-          {shown.length > LIMIT && <p className="data-note" style={{ marginTop: 14 }}>Showing the {LIMIT} most urgent of {shown.length}. Narrow by role or person.</p>}
+          {shown.length > LIMIT && (
+            <p className="data-note" style={{ marginTop: 14 }}>
+              Showing the {LIMIT} most urgent of {shown.length}. Narrow by role or person.
+            </p>
+          )}
         </div>
       )}
     </section>

@@ -7,7 +7,7 @@ is stored. Routers stay thin and call into this module.
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
@@ -23,7 +23,7 @@ DELAY_RANK = {DelayLevel.on_time: 0, DelayLevel.days_1_7: 1, DelayLevel.days_8_3
 def as_utc(value: datetime | None) -> datetime | None:
     """SQLite returns naive datetimes; everything stored is UTC."""
     if value is not None and value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
+        return value.replace(tzinfo=UTC)
     return value
 
 
@@ -52,8 +52,9 @@ def _order_key(ms: m.Milestone) -> tuple[int, int]:
     return (ms.template.sort_order if ms.template else 1000, ms.id)
 
 
-def build_bundle(ts: m.TrialSite, milestones: list[m.Milestone], deps: list[m.MilestoneDependency],
-                 today: date) -> SiteBundle:
+def build_bundle(
+    ts: m.TrialSite, milestones: list[m.Milestone], deps: list[m.MilestoneDependency], today: date
+) -> SiteBundle:
     milestones = sorted(milestones, key=_order_key)
     inputs = [
         rd.MilestoneInput(
@@ -78,7 +79,8 @@ def load_bundles(session: Session, trial_sites: list[m.TrialSite], today: date) 
         return {}
     milestones: dict[int, list[m.Milestone]] = defaultdict(list)
     for ms in session.scalars(
-        select(m.Milestone).where(m.Milestone.trial_site_id.in_(ids))
+        select(m.Milestone)
+        .where(m.Milestone.trial_site_id.in_(ids))
         .options(joinedload(m.Milestone.template), joinedload(m.Milestone.owner))
     ).unique():
         milestones[ms.trial_site_id].append(ms)
@@ -211,8 +213,13 @@ def graph(bundle: SiteBundle) -> s.TrialSiteGraph:
             for ms in bundle.milestones
         ],
         edges=[
-            s.GraphEdge(id=d.id, predecessor_id=d.predecessor_id, successor_id=d.successor_id,
-                        is_satisfied=states[d.predecessor_id].satisfied, source_type=d.source_type)
+            s.GraphEdge(
+                id=d.id,
+                predecessor_id=d.predecessor_id,
+                successor_id=d.successor_id,
+                is_satisfied=states[d.predecessor_id].satisfied,
+                source_type=d.source_type,
+            )
             for d in sorted(bundle.deps, key=lambda d: d.id)
         ],
         blocking_milestone_ids=[st.id for st in blocking],
@@ -250,21 +257,31 @@ def activation_counts(session: Session, trial_ids: list[int]) -> dict[int, s.Act
 
 def trial_summary(trial: m.Trial, counts: s.ActivationCounts) -> s.TrialSummary:
     return s.TrialSummary(
-        id=trial.id, nct_id=trial.nct_id, title=trial.title, acronym=trial.acronym, phases=trial.phases,
-        sponsor_name=trial.sponsor_name, overall_status=trial.overall_status,
-        site_count=sum(counts.model_dump().values()), activation_counts=counts, source_type=trial.source_type,
+        id=trial.id,
+        nct_id=trial.nct_id,
+        title=trial.title,
+        acronym=trial.acronym,
+        phases=trial.phases,
+        sponsor_name=trial.sponsor_name,
+        overall_status=trial.overall_status,
+        site_count=sum(counts.model_dump().values()),
+        activation_counts=counts,
+        source_type=trial.source_type,
     )
 
 
 def trial_detail(session: Session, trial: m.Trial, counts: s.ActivationCounts, today: date) -> s.TrialDetail:
     """Trial detail. Average readiness is over trial sites that have synthetic milestones."""
     tracked = session.scalars(
-        select(m.TrialSite).where(m.TrialSite.trial_id == trial.id, m.TrialSite.activation_status != ActivationStatus.selected)
+        select(m.TrialSite).where(
+            m.TrialSite.trial_id == trial.id, m.TrialSite.activation_status != ActivationStatus.selected
+        )
     ).all()
     bundles = load_bundles(session, list(tracked), today)
     readiness = [
         sum(1 for ms in b.milestones if ms.status in SATISFIED_STATUSES) / len(b.milestones) * 100
-        for b in bundles.values() if b.milestones
+        for b in bundles.values()
+        if b.milestones
     ]
     base = trial_summary(trial, counts).model_dump()
     return s.TrialDetail(

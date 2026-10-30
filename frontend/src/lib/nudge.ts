@@ -8,7 +8,12 @@ export function nudgeText(siteName: string, m: Milestone | Blocker, downstream =
   const isTeam = !!o && (o.team_name === o.name || /office|supply|pharmacy|team/i.test(o.name));
   const owner = !o ? "there" : isTeam ? `${o.name} team` : o.name.split(" ")[0];
   const reason = m.blocked_reason ? ` It's marked blocked: "${m.blocked_reason}".` : "";
-  const late = m.days_overdue > 0 ? ` It is ${plural(m.days_overdue, "day")} past its ${fmtDate(m.due_date, true)} due date.` : m.due_date ? ` It is due ${fmtDate(m.due_date, true)}.` : "";
+  const late =
+    m.days_overdue > 0
+      ? ` It is ${plural(m.days_overdue, "day")} past its ${fmtDate(m.due_date, true)} due date.`
+      : m.due_date
+        ? ` It is due ${fmtDate(m.due_date, true)}.`
+        : "";
   const hold = downstream > 0 ? ` It is holding up ${plural(downstream, "later step")} for the site.` : "";
   return `Hi ${owner}, quick check on "${name}" for ${siteName}.${late}${reason}${hold} Could you share the current status and a date you expect it to be done? Thanks.`;
 }

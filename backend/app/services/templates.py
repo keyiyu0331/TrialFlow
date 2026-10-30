@@ -47,12 +47,28 @@ DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
     TemplateSpec("STAFF_TRAINING", "Staff training", Workstream.training, UserRole.site_coordinator, 14, 50),
     TemplateSpec("PHARMACY_SETUP", "Pharmacy setup", Workstream.pharmacy, UserRole.pharmacist, 21, 60),
     TemplateSpec("LAB_SYSTEMS_ACCESS", "Lab and systems access", Workstream.operations, UserRole.lab_manager, 21, 70),
-    TemplateSpec("DRUG_SHIPMENT", "Drug shipped and received", Workstream.operations, UserRole.sponsor_supply, 14, 80,
-                 predecessors=("IRB_APPROVAL", "PHARMACY_SETUP")),
-    TemplateSpec("SIV", "Site initiation visit", Workstream.activation, UserRole.cra, 7, 90,
-                 predecessors=_PARALLEL, is_gate=True),
-    TemplateSpec("GREEN_LIGHT", "Green light", Workstream.activation, UserRole.startup_manager, 3, 100,
-                 predecessors=("SIV",), is_gate=True),
+    TemplateSpec(
+        "DRUG_SHIPMENT",
+        "Drug shipped and received",
+        Workstream.operations,
+        UserRole.sponsor_supply,
+        14,
+        80,
+        predecessors=("IRB_APPROVAL", "PHARMACY_SETUP"),
+    ),
+    TemplateSpec(
+        "SIV", "Site initiation visit", Workstream.activation, UserRole.cra, 7, 90, predecessors=_PARALLEL, is_gate=True
+    ),
+    TemplateSpec(
+        "GREEN_LIGHT",
+        "Green light",
+        Workstream.activation,
+        UserRole.startup_manager,
+        3,
+        100,
+        predecessors=("SIV",),
+        is_gate=True,
+    ),
 )
 
 
@@ -74,10 +90,7 @@ def ensure_templates(session: Session) -> dict[str, m.MilestoneTemplate]:
         session.add(existing[spec.code])
     session.flush()
 
-    have = {
-        (d.predecessor_template_id, d.successor_template_id)
-        for d in session.scalars(select(m.TemplateDependency))
-    }
+    have = {(d.predecessor_template_id, d.successor_template_id) for d in session.scalars(select(m.TemplateDependency))}
     for spec in DEFAULT_TEMPLATES:
         for pred_code in spec.predecessors:
             pair = (existing[pred_code].id, existing[spec.code].id)

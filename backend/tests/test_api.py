@@ -18,8 +18,13 @@ def dashboard(client, nct=SWOG, query=""):
 
 
 def site_by_scenario(client, scenario, nct=SWOG):
-    return next(r for r in dashboard(client, nct, "activation_status=in_startup&activation_status=activated&activation_status=on_hold")["items"]
-                if r["scenario_label"] == scenario)
+    return next(
+        r
+        for r in dashboard(
+            client, nct, "activation_status=in_startup&activation_status=activated&activation_status=on_hold"
+        )["items"]
+        if r["scenario_label"] == scenario
+    )
 
 
 def milestone(detail, code):
@@ -29,11 +34,17 @@ def milestone(detail, code):
 def test_openapi_lists_every_endpoint(client):
     paths = client.get("/openapi.json").json()["paths"]
     expected = {
-        "/trials": {"get"}, "/trials/{trial_id}": {"get"}, "/trials/{trial_id}/sites": {"get"},
-        "/trial-sites/{trial_site_id}": {"get"}, "/trial-sites/{trial_site_id}/graph": {"get"},
-        "/trial-sites/{trial_site_id}/events": {"get"}, "/trial-sites/{trial_site_id}/dependencies": {"post"},
-        "/dependencies/{dependency_id}": {"delete"}, "/milestones/{milestone_id}": {"patch"},
-        "/templates": {"get"}, "/users": {"get"},
+        "/trials": {"get"},
+        "/trials/{trial_id}": {"get"},
+        "/trials/{trial_id}/sites": {"get"},
+        "/trial-sites/{trial_site_id}": {"get"},
+        "/trial-sites/{trial_site_id}/graph": {"get"},
+        "/trial-sites/{trial_site_id}/events": {"get"},
+        "/trial-sites/{trial_site_id}/dependencies": {"post"},
+        "/dependencies/{dependency_id}": {"delete"},
+        "/milestones/{milestone_id}": {"patch"},
+        "/templates": {"get"},
+        "/users": {"get"},
     }
     for path, methods in expected.items():
         assert methods <= set(paths[path]), path
@@ -71,7 +82,9 @@ def test_dashboard_row_for_a_contract_stall(client):
 
 
 def test_dashboard_is_sorted_worst_first_and_activated_last(client):
-    rows = dashboard(client, query="activation_status=in_startup&activation_status=activated&activation_status=on_hold")["items"]
+    rows = dashboard(
+        client, query="activation_status=in_startup&activation_status=activated&activation_status=on_hold"
+    )["items"]
     assert rows[0]["delay_level"] == "over_30" and rows[0]["scenario_label"] == "training_gap"
     assert rows[-1]["health"] == "activated"
     assert [r["health"] for r in rows].count("activated") == 1
@@ -135,8 +148,10 @@ def test_patch_completes_a_blocked_milestone_and_writes_events(client):
     detail = client.get(f"/trial-sites/{row['id']}").json()
     contract = milestone(detail, "CONTRACT_EXECUTED")
     owner = contract["owner"]["id"]
-    r = client.patch(f"/milestones/{contract['id']}", json={"status": "complete", "note": "Executed CTA received",
-                                                             "changed_by_user_id": owner})
+    r = client.patch(
+        f"/milestones/{contract['id']}",
+        json={"status": "complete", "note": "Executed CTA received", "changed_by_user_id": owner},
+    )
     assert r.status_code == 200
     body = r.json()
     assert body["milestone"]["status"] == "complete" and not body["milestone"]["is_blocking"]
@@ -154,8 +169,10 @@ def test_patch_writes_one_event_per_changed_field(client):
     row = site_by_scenario(client, "on_track_early")
     detail = client.get(f"/trial-sites/{row['id']}").json()
     ms = milestone(detail, "IRB_APPROVAL")
-    r = client.patch(f"/milestones/{ms['id']}", json={"status": "blocked", "blocked_reason": "IRB asked for revisions",
-                                                      "due_date": "2026-12-31"})
+    r = client.patch(
+        f"/milestones/{ms['id']}",
+        json={"status": "blocked", "blocked_reason": "IRB asked for revisions", "due_date": "2026-12-31"},
+    )
     assert r.status_code == 200
     assert {e["event_type"] for e in r.json()["events"]} == {"status_change", "due_date_change"}
     assert r.json()["milestone"]["blocked_reason"] == "IRB asked for revisions"
@@ -218,8 +235,10 @@ def test_blocked_reason_is_kept_in_the_event_note(client):
 def test_explicit_note_wins_over_blocked_reason(client):
     row = site_by_scenario(client, "on_track_early")
     ms = milestone(client.get(f"/trial-sites/{row['id']}").json(), "IRB_APPROVAL")
-    r = client.patch(f"/milestones/{ms['id']}", json={"status": "blocked", "blocked_reason": "Legal redlines",
-                                                      "note": "Raised on Monday call"})
+    r = client.patch(
+        f"/milestones/{ms['id']}",
+        json={"status": "blocked", "blocked_reason": "Legal redlines", "note": "Raised on Monday call"},
+    )
     assert r.json()["events"][0]["note"] == "Raised on Monday call"
     assert r.json()["milestone"]["blocked_reason"] == "Legal redlines"
 
@@ -227,7 +246,9 @@ def test_explicit_note_wins_over_blocked_reason(client):
 def test_patch_with_no_change_writes_no_events(client):
     row = site_by_scenario(client, "contract_stall")
     contract = milestone(client.get(f"/trial-sites/{row['id']}").json(), "CONTRACT_EXECUTED")
-    r = client.patch(f"/milestones/{contract['id']}", json={"status": "blocked", "blocked_reason": contract["blocked_reason"]})
+    r = client.patch(
+        f"/milestones/{contract['id']}", json={"status": "blocked", "blocked_reason": contract["blocked_reason"]}
+    )
     assert r.status_code == 200 and r.json()["events"] == []
 
 
@@ -255,8 +276,13 @@ def test_validation_errors_use_error_response_shape(client):
 
 
 def test_not_found_errors(client):
-    for path in ("/trials/999999", "/trials/999999/sites", "/trial-sites/999999", "/trial-sites/999999/graph",
-                 "/trial-sites/999999/events"):
+    for path in (
+        "/trials/999999",
+        "/trials/999999/sites",
+        "/trial-sites/999999",
+        "/trial-sites/999999/graph",
+        "/trial-sites/999999/events",
+    ):
         r = client.get(path)
         assert r.status_code == 404 and r.json()["code"] == "not_found", path
 
@@ -267,7 +293,12 @@ def test_dependency_errors_and_lifecycle(client):
     code = {n["template_code"]: n["milestone_id"] for n in graph["nodes"]}
     url = f"/trial-sites/{row['id']}/dependencies"
 
-    assert client.post(url, json={"predecessor_id": code["IRB_APPROVAL"], "successor_id": code["IRB_APPROVAL"]}).status_code == 422
+    assert (
+        client.post(
+            url, json={"predecessor_id": code["IRB_APPROVAL"], "successor_id": code["IRB_APPROVAL"]}
+        ).status_code
+        == 422
+    )
     dup = client.post(url, json={"predecessor_id": code["IRB_APPROVAL"], "successor_id": code["DRUG_SHIPMENT"]})
     assert dup.status_code == 409 and dup.json()["code"] == "duplicate_dependency"
 
@@ -277,12 +308,16 @@ def test_dependency_errors_and_lifecycle(client):
     assert path[0] == path[-1] == code["IRB_APPROVAL"] and code["GREEN_LIGHT"] in path
 
     other = site_by_scenario(client, "irb_delay")
-    other_ids = {n["template_code"]: n["milestone_id"] for n in client.get(f"/trial-sites/{other['id']}/graph").json()["nodes"]}
+    other_ids = {
+        n["template_code"]: n["milestone_id"] for n in client.get(f"/trial-sites/{other['id']}/graph").json()["nodes"]
+    }
     cross = client.post(url, json={"predecessor_id": other_ids["IRB_APPROVAL"], "successor_id": code["SIV"]})
     assert cross.status_code == 409 and cross.json()["code"] == "cross_trial_site"
 
     # A new valid dependency: the contract must now also precede shipment (the open schema question).
-    created = client.post(url, json={"predecessor_id": code["CONTRACT_EXECUTED"], "successor_id": code["DRUG_SHIPMENT"]})
+    created = client.post(
+        url, json={"predecessor_id": code["CONTRACT_EXECUTED"], "successor_id": code["DRUG_SHIPMENT"]}
+    )
     assert created.status_code == 201
     shipment = milestone(client.get(f"/trial-sites/{row['id']}").json(), "DRUG_SHIPMENT")
     assert code["CONTRACT_EXECUTED"] in shipment["predecessor_ids"]

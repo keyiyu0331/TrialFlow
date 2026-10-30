@@ -15,10 +15,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
-from sqlalchemy.orm import Session  # noqa: E402
-
 from app.db import Base, get_engine  # noqa: E402
 from app.services.seeding import clear_seed, is_seeded, seed  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 
 def main() -> None:
@@ -36,7 +35,10 @@ def main() -> None:
             clear_seed(session)
         result = seed(session, args.as_of)
         session.commit()
-    print(f"Seeded {result.trial_sites} trial sites, {result.users} users, {result.events} history events (as of {args.as_of}).")
+    print(
+        f"Seeded {result.trial_sites} trial sites, {result.users} users, "
+        f"{result.events} history events (as of {args.as_of})."
+    )
 
 
 if __name__ == "__main__":

@@ -54,7 +54,11 @@ export default function CommandPalette() {
   }, [open]);
 
   useEffect(() => {
-    if (open && sites === null) fetch("/api/palette").then((r) => r.json()).then((d) => setSites(d.sites ?? [])).catch(() => setSites([]));
+    if (open && sites === null)
+      fetch("/api/palette")
+        .then((r) => r.json())
+        .then((d) => setSites(d.sites ?? []))
+        .catch(() => setSites([]));
   }, [open, sites]);
 
   const go = (href: string) => {
@@ -64,7 +68,9 @@ export default function CommandPalette() {
 
   const hits = useMemo<Hit[]>(() => {
     const needle = q.trim().toLowerCase();
-    const pages = PAGES.filter((p) => (me?.sponsor || !p.sponsor) && (!needle || p.label.toLowerCase().includes(needle))).map<Hit>((p) => ({
+    const pages = PAGES.filter(
+      (p) => (me?.sponsor || !p.sponsor) && (!needle || p.label.toLowerCase().includes(needle)),
+    ).map<Hit>((p) => ({
       group: "Go to",
       label: p.label,
       run: () => go(p.href),
@@ -74,7 +80,16 @@ export default function CommandPalette() {
       .slice(0, 6)
       .map<Hit>((s) => ({ group: "Sites", label: s.name, sub: s.sub, run: () => go(`/sites/${s.id}`) }));
     const ask: Hit[] = needle
-      ? [{ group: "Ask", label: `Ask TrialFlow: “${q.trim()}”`, run: () => { setOpen(false); window.dispatchEvent(new CustomEvent("tf:ask", { detail: q.trim() })); } }]
+      ? [
+          {
+            group: "Ask",
+            label: `Ask TrialFlow: “${q.trim()}”`,
+            run: () => {
+              setOpen(false);
+              window.dispatchEvent(new CustomEvent("tf:ask", { detail: q.trim() }));
+            },
+          },
+        ]
       : [];
     return [...found, ...pages, ...ask];
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,16 +115,25 @@ export default function CommandPalette() {
             setI(0);
           }}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") { e.preventDefault(); setI((x) => Math.min(x + 1, hits.length - 1)); }
-            else if (e.key === "ArrowUp") { e.preventDefault(); setI((x) => Math.max(x - 1, 0)); }
-            else if (e.key === "Enter") hits[i]?.run();
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setI((x) => Math.min(x + 1, hits.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setI((x) => Math.max(x - 1, 0));
+            } else if (e.key === "Enter") hits[i]?.run();
           }}
           placeholder="Jump to a site or page, or ask a question…"
           aria-label="Search"
         />
         <ul className="pal__list">
           {hits.map((h, idx) => (
-            <li key={h.group + h.label} className={idx === i ? "on" : ""} onMouseEnter={() => setI(idx)} onClick={h.run}>
+            <li
+              key={h.group + h.label}
+              className={idx === i ? "on" : ""}
+              onMouseEnter={() => setI(idx)}
+              onClick={h.run}
+            >
               <small>{h.group}</small>
               <span>{h.label}</span>
               {h.sub && <em>{h.sub}</em>}

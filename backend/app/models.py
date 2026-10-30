@@ -5,7 +5,7 @@ Not stored: overdue, delay level, days in status, blocking, next-action owner,
 readiness, projected activation. Those are computed in the backend.
 """
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
@@ -38,7 +38,7 @@ from .enums import (
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _enum(enum_cls: type[PyEnum], name: str) -> Enum:
@@ -53,9 +53,7 @@ def _enum(enum_cls: type[PyEnum], name: str) -> Enum:
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
@@ -85,9 +83,7 @@ class Trial(TimestampMixin, Base):
     study_type: Mapped[str | None] = mapped_column(String(32))
     sponsor_name: Mapped[str | None] = mapped_column(Text)
     lead_sponsor_class: Mapped[str | None] = mapped_column(String(32))
-    overall_status: Mapped[RecruitmentStatus | None] = mapped_column(
-        _enum(RecruitmentStatus, "recruitment_status")
-    )
+    overall_status: Mapped[RecruitmentStatus | None] = mapped_column(_enum(RecruitmentStatus, "recruitment_status"))
     # Registry dates may be partial (YYYY-MM); the importer stores the 1st of the month.
     start_date: Mapped[date | None] = mapped_column(Date)
     primary_completion_date: Mapped[date | None] = mapped_column(Date)
@@ -97,9 +93,7 @@ class Trial(TimestampMixin, Base):
     # Synthetic planning fields.
     target_site_count: Mapped[int | None] = mapped_column(Integer)
     target_fpi_date: Mapped[date | None] = mapped_column(Date)
-    source_type: Mapped[SourceType] = mapped_column(
-        _enum(SourceType, "source_type"), nullable=False
-    )
+    source_type: Mapped[SourceType] = mapped_column(_enum(SourceType, "source_type"), nullable=False)
 
     trial_sites: Mapped[list["TrialSite"]] = relationship(back_populates="trial")
 
@@ -114,12 +108,8 @@ class Site(TimestampMixin, Base):
 
     __tablename__ = "sites"
     __table_args__ = (
-        CheckConstraint(
-            "latitude IS NULL OR (latitude BETWEEN -90 AND 90)", name="ck_sites_latitude"
-        ),
-        CheckConstraint(
-            "longitude IS NULL OR (longitude BETWEEN -180 AND 180)", name="ck_sites_longitude"
-        ),
+        CheckConstraint("latitude IS NULL OR (latitude BETWEEN -90 AND 90)", name="ck_sites_latitude"),
+        CheckConstraint("longitude IS NULL OR (longitude BETWEEN -180 AND 180)", name="ck_sites_longitude"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -133,9 +123,7 @@ class Site(TimestampMixin, Base):
     # geoPoint is a city-level centroid in API v2, not the facility location.
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
-    source_type: Mapped[SourceType] = mapped_column(
-        _enum(SourceType, "source_type"), nullable=False
-    )
+    source_type: Mapped[SourceType] = mapped_column(_enum(SourceType, "source_type"), nullable=False)
 
     trial_sites: Mapped[list["TrialSite"]] = relationship(back_populates="site")
     users: Mapped[list["User"]] = relationship(back_populates="site")
@@ -158,12 +146,8 @@ class TrialSite(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    trial_id: Mapped[int] = mapped_column(
-        ForeignKey("trials.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    site_id: Mapped[int] = mapped_column(
-        ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False, index=True
-    )
+    trial_id: Mapped[int] = mapped_column(ForeignKey("trials.id", ondelete="CASCADE"), nullable=False, index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False, index=True)
     # 1-based position in contactsLocationsModule.locations; stable only within one pull.
     ctgov_location_index: Mapped[int | None] = mapped_column(Integer)
     # Real per-site registry status. Never used to infer activation.
@@ -179,9 +163,7 @@ class TrialSite(TimestampMixin, Base):
     target_activation_date: Mapped[date | None] = mapped_column(Date)
     actual_activation_date: Mapped[date | None] = mapped_column(Date)
     # Provenance of the activation data on this row (milestones are always synthetic in the MVP).
-    source_type: Mapped[SourceType] = mapped_column(
-        _enum(SourceType, "source_type"), nullable=False
-    )
+    source_type: Mapped[SourceType] = mapped_column(_enum(SourceType, "source_type"), nullable=False)
     scenario_label: Mapped[str | None] = mapped_column(String(64))
 
     trial: Mapped[Trial] = relationship(back_populates="trial_sites")
@@ -200,9 +182,7 @@ class User(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     role: Mapped[UserRole] = mapped_column(_enum(UserRole, "user_role"), nullable=False)
-    site_id: Mapped[int | None] = mapped_column(
-        ForeignKey("sites.id", ondelete="SET NULL"), index=True
-    )
+    site_id: Mapped[int | None] = mapped_column(ForeignKey("sites.id", ondelete="SET NULL"), index=True)
     team_name: Mapped[str | None] = mapped_column(Text)
     source_type: Mapped[SourceType] = mapped_column(
         _enum(SourceType, "source_type"), default=SourceType.synthetic, nullable=False
@@ -215,19 +195,13 @@ class MilestoneTemplate(TimestampMixin, Base):
     """The standard checklist every new trial site starts from."""
 
     __tablename__ = "milestone_templates"
-    __table_args__ = (
-        CheckConstraint("default_duration_days >= 0", name="ck_templates_duration_nonneg"),
-    )
+    __table_args__ = (CheckConstraint("default_duration_days >= 0", name="ck_templates_duration_nonneg"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    workstream: Mapped[Workstream] = mapped_column(
-        _enum(Workstream, "workstream"), nullable=False
-    )
-    default_owner_role: Mapped[UserRole] = mapped_column(
-        _enum(UserRole, "user_role"), nullable=False
-    )
+    workstream: Mapped[Workstream] = mapped_column(_enum(Workstream, "workstream"), nullable=False)
+    default_owner_role: Mapped[UserRole] = mapped_column(_enum(UserRole, "user_role"), nullable=False)
     default_duration_days: Mapped[int] = mapped_column(Integer, nullable=False)
     is_gate: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
@@ -262,8 +236,7 @@ class Milestone(TimestampMixin, Base):
         # A template is instantiated at most once per trial site.
         UniqueConstraint("trial_site_id", "template_id", name="uq_milestones_site_template"),
         CheckConstraint(
-            "(status = 'complete' AND completed_at IS NOT NULL)"
-            " OR (status <> 'complete' AND completed_at IS NULL)",
+            "(status = 'complete' AND completed_at IS NOT NULL) OR (status <> 'complete' AND completed_at IS NULL)",
             name="ck_milestones_completed_at_matches_status",
         ),
         CheckConstraint(
@@ -276,28 +249,20 @@ class Milestone(TimestampMixin, Base):
     trial_site_id: Mapped[int] = mapped_column(
         ForeignKey("trial_sites.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    template_id: Mapped[int | None] = mapped_column(
-        ForeignKey("milestone_templates.id", ondelete="SET NULL")
-    )
+    template_id: Mapped[int | None] = mapped_column(ForeignKey("milestone_templates.id", ondelete="SET NULL"))
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    workstream: Mapped[Workstream] = mapped_column(
-        _enum(Workstream, "workstream"), nullable=False
-    )
+    workstream: Mapped[Workstream] = mapped_column(_enum(Workstream, "workstream"), nullable=False)
     status: Mapped[MilestoneStatus] = mapped_column(
         _enum(MilestoneStatus, "milestone_status"),
         default=MilestoneStatus.not_started,
         nullable=False,
     )
-    owner_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), index=True
-    )
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
     planned_start_date: Mapped[date | None] = mapped_column(Date)
     due_date: Mapped[date | None] = mapped_column(Date)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    status_changed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, nullable=False
-    )
+    status_changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     blocked_reason: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
     source_type: Mapped[SourceType] = mapped_column(
@@ -374,17 +339,13 @@ class MilestoneEvent(Base):
     milestone_id: Mapped[int] = mapped_column(
         ForeignKey("milestones.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    changed_by_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL")
-    )
+    changed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     event_type: Mapped[EventType] = mapped_column(_enum(EventType, "event_type"), nullable=False)
     old_value: Mapped[str | None] = mapped_column(Text)
     new_value: Mapped[str | None] = mapped_column(Text)
     note: Mapped[str | None] = mapped_column(Text)
     # Set explicitly by the seed script to backfill synthetic history.
-    occurred_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, nullable=False, index=True
-    )
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False, index=True)
     source_type: Mapped[SourceType] = mapped_column(
         _enum(SourceType, "source_type"), default=SourceType.synthetic, nullable=False
     )

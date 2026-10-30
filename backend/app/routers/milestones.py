@@ -1,6 +1,6 @@
 """Milestone and dependency edits. Every status, owner, or due-date change writes an event."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
@@ -35,14 +35,19 @@ def _open_predecessors(session: Session, ms: m.Milestone) -> list[m.Milestone]:
 @router.patch(
     "/milestones/{milestone_id}",
     response_model=MilestoneUpdateResult,
-    responses={**NOT_FOUND, 422: {"model": ErrorResponse, "description": "Invalid change"},
-        409: {"model": ErrorResponse, "description": "Predecessors still open (unsatisfied_dependencies)"}},
+    responses={
+        **NOT_FOUND,
+        422: {"model": ErrorResponse, "description": "Invalid change"},
+        409: {"model": ErrorResponse, "description": "Predecessors still open (unsatisfied_dependencies)"},
+    },
     summary="Change status, owner, or due date; writes one event per changed field",
 )
-def update_milestone(milestone_id: int, body: MilestoneUpdate, session: Session = Depends(get_session),
-                     today: date = Depends(get_today)):
-    ms = session.get(m.Milestone, milestone_id,
-                     options=[joinedload(m.Milestone.template), joinedload(m.Milestone.owner)])
+def update_milestone(
+    milestone_id: int, body: MilestoneUpdate, session: Session = Depends(get_session), today: date = Depends(get_today)
+):
+    ms = session.get(
+        m.Milestone, milestone_id, options=[joinedload(m.Milestone.template), joinedload(m.Milestone.owner)]
+    )
     if ms is None:
         raise not_found("Milestone", milestone_id)
     fields = body.model_fields_set
@@ -58,13 +63,16 @@ def update_milestone(milestone_id: int, body: MilestoneUpdate, session: Session 
         open_preds = _open_predecessors(session, ms)
         if open_preds:
             names = ", ".join(p.name for p in open_preds)
-            raise HTTPException(409, detail={
-                "detail": f"Cannot complete {ms.name}: waiting on {names}",
-                "code": "unsatisfied_dependencies",
-                "open_predecessor_ids": [p.id for p in open_preds],
-            })
+            raise HTTPException(
+                409,
+                detail={
+                    "detail": f"Cannot complete {ms.name}: waiting on {names}",
+                    "code": "unsatisfied_dependencies",
+                    "open_predecessor_ids": [p.id for p in open_preds],
+                },
+            )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     changes: list[tuple[EventType, str | None, str | None]] = []
     was_complete = ms.status == MilestoneStatus.complete
 
@@ -72,8 +80,11 @@ def update_milestone(milestone_id: int, body: MilestoneUpdate, session: Session 
         changes.append((EventType.status_change, ms.status.value, body.status.value))
         ms.status, ms.status_changed_at = body.status, now
         ms.completed_at = now if body.status == MilestoneStatus.complete else None
-        if ms.started_at is None and body.status in (MilestoneStatus.in_progress, MilestoneStatus.blocked,
-                                                    MilestoneStatus.complete):
+        if ms.started_at is None and body.status in (
+            MilestoneStatus.in_progress,
+            MilestoneStatus.blocked,
+            MilestoneStatus.complete,
+        ):
             ms.started_at = now
         if body.status != MilestoneStatus.blocked:
             ms.blocked_reason = None
@@ -81,36 +92,62 @@ def update_milestone(milestone_id: int, body: MilestoneUpdate, session: Session 
     if "blocked_reason" in fields and ms.status == MilestoneStatus.blocked and body.blocked_reason != ms.blocked_reason:
         ms.blocked_reason, reason_changed = body.blocked_reason, True
     if "owner_user_id" in fields and body.owner_user_id != ms.owner_user_id:
-        changes.append((EventType.owner_change,
-                        str(ms.owner_user_id) if ms.owner_user_id is not None else None,
-                        str(body.owner_user_id) if body.owner_user_id is not None else None))
+        changes.append(
+            (
+                EventType.owner_change,
+                str(ms.owner_user_id) if ms.owner_user_id is not None else None,
+                str(body.owner_user_id) if body.owner_user_id is not None else None,
+            )
+        )
         ms.owner_user_id = body.owner_user_id
     if "due_date" in fields and body.due_date != ms.due_date:
-        changes.append((EventType.due_date_change,
-                        ms.due_date.isoformat() if ms.due_date else None,
-                        body.due_date.isoformat() if body.due_date else None))
+        changes.append(
+            (
+                EventType.due_date_change,
+                ms.due_date.isoformat() if ms.due_date else None,
+                body.due_date.isoformat() if body.due_date else None,
+            )
+        )
         ms.due_date = body.due_date
 
     # Keep the reason a milestone was blocked in its history; it is cleared from the row once unblocked.
     status_note = body.note or (ms.blocked_reason if ms.status == MilestoneStatus.blocked else None)
     events = [
-        m.MilestoneEvent(milestone_id=ms.id, changed_by_user_id=body.changed_by_user_id, event_type=kind,
-                         old_value=old, new_value=new,
-                         note=status_note if kind == EventType.status_change else body.note,
-                         occurred_at=now, source_type=ms.source_type)
+        m.MilestoneEvent(
+            milestone_id=ms.id,
+            changed_by_user_id=body.changed_by_user_id,
+            event_type=kind,
+            old_value=old,
+            new_value=new,
+            note=status_note if kind == EventType.status_change else body.note,
+            occurred_at=now,
+            source_type=ms.source_type,
+        )
         for kind, old, new in changes
     ]
     if not events and (body.note or reason_changed):
-        events.append(m.MilestoneEvent(milestone_id=ms.id, changed_by_user_id=body.changed_by_user_id,
-                                       event_type=EventType.note, new_value=ms.blocked_reason if reason_changed else None,
-                                       note=body.note, occurred_at=now, source_type=ms.source_type))
+        events.append(
+            m.MilestoneEvent(
+                milestone_id=ms.id,
+                changed_by_user_id=body.changed_by_user_id,
+                event_type=EventType.note,
+                new_value=ms.blocked_reason if reason_changed else None,
+                note=body.note,
+                occurred_at=now,
+                source_type=ms.source_type,
+            )
+        )
     session.add_all(events)
 
     trial_site = session.get(m.TrialSite, ms.trial_site_id)
     if ms.template and ms.template.code == readiness.GREEN_LIGHT_CODE:
         if ms.status == MilestoneStatus.complete and not was_complete:
             trial_site.activation_status, trial_site.actual_activation_date = ActivationStatus.activated, today
-        elif was_complete and ms.status != MilestoneStatus.complete and trial_site.activation_status == ActivationStatus.activated:
+        elif (
+            was_complete
+            and ms.status != MilestoneStatus.complete
+            and trial_site.activation_status == ActivationStatus.activated
+        ):
             trial_site.activation_status, trial_site.actual_activation_date = ActivationStatus.in_startup, None
     session.commit()
 

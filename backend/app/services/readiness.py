@@ -144,11 +144,7 @@ def analyze(milestones: list[MilestoneInput], edges: list[Edge], as_of: date) ->
         ready = not is_satisfied and all(satisfied[p] for p in preds[mid])
         overdue = not is_satisfied and m.due_date is not None and m.due_date < as_of
         days_overdue = (as_of - m.due_date).days if overdue else 0
-        blocking = (
-            not is_satisfied
-            and m.code != GREEN_LIGHT_CODE
-            and (overdue or m.status == MilestoneStatus.blocked)
-        )
+        blocking = not is_satisfied and m.code != GREEN_LIGHT_CODE and (overdue or m.status == MilestoneStatus.blocked)
         slip = 0
         if not is_satisfied and m.due_date is not None and finish[mid] is not None:
             slip = max(0, (finish[mid] - m.due_date).days)
@@ -234,8 +230,9 @@ def _count_unsatisfied_downstream(start: int, succs: dict[int, list[int]], satis
     return sum(1 for node in seen if not satisfied[node])
 
 
-def _topological_order(by_id: dict[int, MilestoneInput], preds: dict[int, list[int]],
-                       succs: dict[int, list[int]]) -> list[int]:
+def _topological_order(
+    by_id: dict[int, MilestoneInput], preds: dict[int, list[int]], succs: dict[int, list[int]]
+) -> list[int]:
     indegree = {mid: len(p) for mid, p in preds.items()}
     queue = deque(mid for mid, d in indegree.items() if d == 0)
     order: list[int] = []

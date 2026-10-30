@@ -1,6 +1,6 @@
 """Trial site endpoints: detail, dependency graph, change history, and dependency edits."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -32,23 +32,34 @@ def _bundle(session: Session, trial_site_id: int, today: date) -> views.SiteBund
     return views.load_bundles(session, [ts], today)[ts.id]
 
 
-@router.get("/{trial_site_id}", response_model=TrialSiteDetail, responses=NOT_FOUND,
-            summary="Get a trial site with its milestones")
+@router.get(
+    "/{trial_site_id}",
+    response_model=TrialSiteDetail,
+    responses=NOT_FOUND,
+    summary="Get a trial site with its milestones",
+)
 def get_trial_site(trial_site_id: int, session: Session = Depends(get_session), today: date = Depends(get_today)):
     bundle = _bundle(session, trial_site_id, today)
     ts = bundle.trial_site
-    return views.trial_site_detail(bundle, ts.site, ts.trial, datetime.now(timezone.utc))
+    return views.trial_site_detail(bundle, ts.site, ts.trial, datetime.now(UTC))
 
 
-@router.get("/{trial_site_id}/graph", response_model=TrialSiteGraph, responses=NOT_FOUND,
-            summary="Milestones, dependencies, and blocking flags")
-def get_trial_site_graph(trial_site_id: int, session: Session = Depends(get_session),
-                         today: date = Depends(get_today)):
+@router.get(
+    "/{trial_site_id}/graph",
+    response_model=TrialSiteGraph,
+    responses=NOT_FOUND,
+    summary="Milestones, dependencies, and blocking flags",
+)
+def get_trial_site_graph(trial_site_id: int, session: Session = Depends(get_session), today: date = Depends(get_today)):
     return views.graph(_bundle(session, trial_site_id, today))
 
 
-@router.get("/{trial_site_id}/events", response_model=Page[EventOut], responses=NOT_FOUND,
-            summary="Change history timeline, newest first")
+@router.get(
+    "/{trial_site_id}/events",
+    response_model=Page[EventOut],
+    responses=NOT_FOUND,
+    summary="Change history timeline, newest first",
+)
 def list_trial_site_events(
     trial_site_id: int,
     milestone_id: int | None = None,
@@ -61,7 +72,9 @@ def list_trial_site_events(
     if session.get(m.TrialSite, trial_site_id) is None:
         raise not_found("Trial site", trial_site_id)
     stmt = (
-        select(m.MilestoneEvent).join(m.Milestone).where(m.Milestone.trial_site_id == trial_site_id)
+        select(m.MilestoneEvent)
+        .join(m.Milestone)
+        .where(m.Milestone.trial_site_id == trial_site_id)
         .options(joinedload(m.MilestoneEvent.milestone), joinedload(m.MilestoneEvent.changed_by))
     )
     if milestone_id is not None:
@@ -70,10 +83,10 @@ def list_trial_site_events(
         stmt = stmt.where(m.MilestoneEvent.event_type.in_(event_type))
     events = [views.event_out(e) for e in session.scalars(stmt).unique()]
     if since is not None:
-        cutoff = since if since.tzinfo else since.replace(tzinfo=timezone.utc)
+        cutoff = since if since.tzinfo else since.replace(tzinfo=UTC)
         events = [e for e in events if e.occurred_at >= cutoff]
     events.sort(key=lambda e: (e.occurred_at, e.id), reverse=True)
-    return Page(items=events[offset: offset + limit], total=len(events), limit=limit, offset=offset)
+    return Page(items=events[offset : offset + limit], total=len(events), limit=limit, offset=offset)
 
 
 def _conflict(code: str, detail: str, **extra) -> HTTPException:
@@ -98,18 +111,27 @@ def create_dependency(trial_site_id: int, body: DependencyCreate, session: Sessi
         if milestone is None or milestone.trial_site_id != trial_site_id:
             raise _conflict("cross_trial_site", f"Milestone {mid} is not in trial site {trial_site_id}")
 
-    existing = session.scalars(select(m.MilestoneDependency).where(m.MilestoneDependency.trial_site_id == trial_site_id)).all()
+    existing = session.scalars(
+        select(m.MilestoneDependency).where(m.MilestoneDependency.trial_site_id == trial_site_id)
+    ).all()
     if any(d.predecessor_id == body.predecessor_id and d.successor_id == body.successor_id for d in existing):
         raise _conflict("duplicate_dependency", "Dependency already exists")
-    path = readiness.find_path([(d.predecessor_id, d.successor_id) for d in existing],
-                               body.successor_id, body.predecessor_id)
+    path = readiness.find_path(
+        [(d.predecessor_id, d.successor_id) for d in existing], body.successor_id, body.predecessor_id
+    )
     if path is not None:
-        raise _conflict("dependency_cycle",
-                        f"Adding {body.predecessor_id} → {body.successor_id} would create a cycle",
-                        cycle_path=path + [body.successor_id])
+        raise _conflict(
+            "dependency_cycle",
+            f"Adding {body.predecessor_id} → {body.successor_id} would create a cycle",
+            cycle_path=path + [body.successor_id],
+        )
 
-    dep = m.MilestoneDependency(trial_site_id=trial_site_id, predecessor_id=body.predecessor_id,
-                                successor_id=body.successor_id, source_type=SourceType.synthetic)
+    dep = m.MilestoneDependency(
+        trial_site_id=trial_site_id,
+        predecessor_id=body.predecessor_id,
+        successor_id=body.successor_id,
+        source_type=SourceType.synthetic,
+    )
     session.add(dep)
     session.commit()
     return dep

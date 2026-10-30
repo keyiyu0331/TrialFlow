@@ -15,10 +15,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
-from sqlalchemy.orm import Session  # noqa: E402
-
 from app.db import Base, get_engine  # noqa: E402
 from app.services.registry_import import import_registry  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 
 def main() -> None:

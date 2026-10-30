@@ -221,7 +221,8 @@ export function getDashboard(trialId: number, opts: { delay?: DelayLevel | null;
 
 /** Trials that have sites TrialFlow is tracking, most active first. */
 export function trackedTrials(trials: TrialSummary[]): TrialSummary[] {
-  const tracked = (t: TrialSummary) => t.activation_counts.in_startup + t.activation_counts.activated + t.activation_counts.on_hold;
+  const tracked = (t: TrialSummary) =>
+    t.activation_counts.in_startup + t.activation_counts.activated + t.activation_counts.on_hold;
   return trials.filter((t) => tracked(t) > 0).sort((a, b) => tracked(b) - tracked(a));
 }
 

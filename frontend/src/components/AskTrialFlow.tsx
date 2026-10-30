@@ -11,7 +11,12 @@ interface Msg {
   follow?: string[];
 }
 
-const START = ["What should I chase today?", "Which sites are blocked?", "What's overdue?", "Which sites will miss their target?"];
+const START = [
+  "What should I chase today?",
+  "Which sites are blocked?",
+  "What's overdue?",
+  "Which sites will miss their target?",
+];
 
 /** Floating chat. Read-only: it answers from live status and never changes a milestone. */
 export default function AskTrialFlow() {
@@ -45,7 +50,11 @@ export default function AskTrialFlow() {
     setMsgs((m) => [...m, { from: "you", text: question }]);
     setBusy(true);
     try {
-      const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
       const a: Answer = await res.json();
       setMsgs((m) => [...m, { from: "tf", text: a.text, links: a.links, follow: a.follow }]);
     } catch {
@@ -124,7 +133,13 @@ export default function AskTrialFlow() {
           ask(q);
         }}
       >
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. what's holding up Oxford?" aria-label="Your question" maxLength={300} />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="e.g. what's holding up Oxford?"
+          aria-label="Your question"
+          maxLength={300}
+        />
         <button className="btn btn--primary" disabled={busy || !q.trim()}>
           Ask
         </button>

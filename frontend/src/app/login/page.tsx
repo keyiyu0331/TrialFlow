@@ -1,6 +1,6 @@
+import LoginForm from "@/components/LoginForm";
 import { ApiUnreachable, getTrackedWorld, getUsers, type User } from "@/lib/api";
 import { openTasks } from "@/lib/insights";
-import LoginForm from "@/components/LoginForm";
 
 export const metadata = { title: "Sign in · TrialFlow" };
 export const dynamic = "force-dynamic";
@@ -19,7 +19,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
     try {
       const open = openTasks((await getTrackedWorld()).flatMap((w) => w.details));
       const load = new Map<number, number>();
-      for (const t of open) if (t.milestone.owner) load.set(t.milestone.owner.id, (load.get(t.milestone.owner.id) ?? 0) + 1);
+      for (const t of open)
+        if (t.milestone.owner) load.set(t.milestone.owner.id, (load.get(t.milestone.owner.id) ?? 0) + 1);
       staff = [...coordinators].sort((a, b) => (load.get(b.id) ?? 0) - (load.get(a.id) ?? 0))[0] ?? staff;
     } catch {
       /* fall back to the first coordinator */

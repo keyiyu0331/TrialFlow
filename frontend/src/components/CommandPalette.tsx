@@ -66,6 +66,7 @@ export default function CommandPalette() {
     router.push(href);
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: go is recreated every render but only closes the palette and pushes a route.
   const hits = useMemo<Hit[]>(() => {
     const needle = q.trim().toLowerCase();
     const pages = PAGES.filter(
@@ -92,7 +93,6 @@ export default function CommandPalette() {
         ]
       : [];
     return [...found, ...pages, ...ask];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, sites, me]);
 
   if (!open) {
@@ -105,6 +105,7 @@ export default function CommandPalette() {
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click is a mouse shortcut; Escape closes the palette from the keyboard.
     <div className="pal" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
       <div className="pal__box" role="dialog" aria-label="Search and jump">
         <input
@@ -128,6 +129,7 @@ export default function CommandPalette() {
         />
         <ul className="pal__list">
           {hits.map((h, idx) => (
+            // biome-ignore lint/a11y/useKeyWithClickEvents: the input handles arrow keys and Enter for these rows.
             <li
               key={h.group + h.label}
               className={idx === i ? "on" : ""}

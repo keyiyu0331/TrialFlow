@@ -31,6 +31,7 @@ export default function AskTrialFlow() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: msgs and busy are triggers; scroll whenever a message or the typing row appears.
   useEffect(() => end.current?.scrollIntoView({ block: "end" }), [msgs, busy]);
 
   const askRef = useRef<(t: string) => void>(() => {});

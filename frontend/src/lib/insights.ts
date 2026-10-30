@@ -114,3 +114,46 @@ export function peopleFrom(tasks: Task[]): Person[] {
   }
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
+
+/** Published start-up durations to compare against (see docs/site-activation-research.md). */
+const BENCH: Record<string, { lo: number; hi: number; note: string }> = {
+  IRB_APPROVAL: { lo: 28, hi: 42, note: "4–6 weeks for full-board review (WCG, 2024)" },
+  CONTRACT_EXECUTED: { lo: 39, hi: 73, note: "39 days on standard templates, 73 on custom (CTSA study)" },
+};
+
+export interface CycleStat {
+  code: string;
+  name: string;
+  n: number;
+  median: number;
+  bench: { lo: number; hi: number; note: string } | null;
+}
+
+/** Days from planned start to completion, per step, across the sites that finished it. */
+export function cycleTimes(details: TrialSiteDetail[]): CycleStat[] {
+  const byCode = new Map<string, { name: string; days: number[] }>();
+  for (const d of details) {
+    for (const m of d.milestones) {
+      if (!m.template_code) continue;
+      const entry = byCode.get(m.template_code) ?? { name: m.name, days: [] };
+      if (m.status === "complete" && m.completed_at && m.planned_start_date) {
+        entry.days.push(Math.max(0, dayNumber(m.completed_at) - dayNumber(m.planned_start_date)));
+      }
+      byCode.set(m.template_code, entry);
+    }
+  }
+  return [...byCode.entries()]
+    .filter(([, v]) => v.days.length > 0)
+    .map(([code, v]) => {
+      const s = [...v.days].sort((a, b) => a - b);
+      const mid = s.length >> 1;
+      return { code, name: v.name, n: s.length, median: s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2), bench: BENCH[code] ?? null };
+    });
+}
+
+export const SLIP_BUCKETS = [
+  { key: "on", label: "On target", test: (d: number) => d <= 0 },
+  { key: "1_14", label: "1–14 days late", test: (d: number) => d >= 1 && d <= 14 },
+  { key: "15_30", label: "15–30 days late", test: (d: number) => d >= 15 && d <= 30 },
+  { key: "30", label: "30+ days late", test: (d: number) => d > 30 },
+];

@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateMilestone, type Milestone, type MilestoneStatus } from "@/lib/api";
+import { useMe } from "./SessionProvider";
 import { DELAY_SHORT, STATUS_LABEL, fmtDate, plural, roleLabel } from "@/lib/format";
 
 const STATUSES = Object.keys(STATUS_LABEL) as MilestoneStatus[];
 
 export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
   const router = useRouter();
+  const { me } = useMe();
   const [status, setStatus] = useState<MilestoneStatus>(m.status);
   const [reason, setReason] = useState(m.blocked_reason ?? "");
   const [note, setNote] = useState("");
@@ -18,7 +20,7 @@ export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
   async function save() {
     setBusy(true);
     setError(null);
-    const body: Parameters<typeof updateMilestone>[1] = { changed_by_user_id: m.owner?.id };
+    const body: Parameters<typeof updateMilestone>[1] = { changed_by_user_id: me?.id ?? m.owner?.id };
     if (status !== m.status) body.status = status;
     if (status === "blocked" && reason.trim() !== (m.blocked_reason ?? "")) body.blocked_reason = reason.trim();
     if (note.trim()) body.note = note.trim();
@@ -64,13 +66,14 @@ export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
       </div>
       {error && <div className="editor__error">{error}</div>}
       <div className="editor__hint">
-        {m.owner ? `Recorded as ${m.owner.name} (synthetic user). ` : ""}Readiness, blockers and projected dates recompute on save.
+        {me ? `Recorded as ${me.name}. ` : ""}Readiness, blockers and projected dates recompute on save.
       </div>
     </div>
   );
 }
 
 export default function MilestoneList({ milestones }: { milestones: Milestone[] }) {
+  const { canEdit } = useMe();
   const [open, setOpen] = useState<number | null>(null);
   return (
     <div>
@@ -110,7 +113,7 @@ export default function MilestoneList({ milestones }: { milestones: Milestone[] 
               <span className="faint">Unassigned</span>
             )}
           </div>
-          <button className="btn" onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
+          <button className="btn" disabled={!canEdit(m.owner?.id)} title={canEdit(m.owner?.id) ? undefined : "Only the owner can update this milestone"} onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
             {open === m.id ? "Close" : "Update"}
           </button>
           {open === m.id && <Editor m={m} onDone={() => setOpen(null)} />}

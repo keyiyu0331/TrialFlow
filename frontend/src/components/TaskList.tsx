@@ -6,9 +6,11 @@ import type { Task } from "@/lib/insights";
 import { DELAY_SHORT, STATUS_LABEL, fmtDate, plural, roleLabel } from "@/lib/format";
 import { TaskChip } from "./Chips";
 import { Editor } from "./MilestoneList";
+import { useMe } from "./SessionProvider";
 
 /** Tasks across sites with in-place status updates (same editor as the site page). */
 export default function TaskList({ tasks, showOwner }: { tasks: Task[]; showOwner: boolean }) {
+  const { canEdit } = useMe();
   const [open, setOpen] = useState<number | null>(null);
   return (
     <div>
@@ -49,7 +51,7 @@ export default function TaskList({ tasks, showOwner }: { tasks: Task[]; showOwne
                 <div className="cell-sub">{t.trialLabel}</div>
               )}
             </div>
-            <button className="btn" onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
+            <button className="btn" disabled={!canEdit(m.owner?.id)} title={canEdit(m.owner?.id) ? undefined : "Only the owner can update this"} onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
               {open === m.id ? "Close" : "Update"}
             </button>
             {open === m.id && <Editor m={m} onDone={() => setOpen(null)} />}

@@ -1,8 +1,5 @@
 import Link from "next/link";
-import AttentionList from "@/components/AttentionList";
-import Orbit from "@/components/Orbit";
-import SiteTable from "@/components/SiteTable";
-import TrialSummary from "@/components/TrialSummary";
+import SiteList from "@/components/SiteList";
 import {
   ApiUnreachable,
   getDashboard,
@@ -14,8 +11,9 @@ import {
   type SiteHealth,
   type TrialSiteSummary,
 } from "@/lib/api";
-import { DELAY_LABEL, HEALTH_LABEL, location } from "@/lib/format";
-import { URGENT, openTasks, trialInsight } from "@/lib/insights";
+import { DELAY_LABEL, HEALTH_LABEL, location, plural } from "@/lib/format";
+import { URGENT, openTasks } from "@/lib/insights";
+import { getSession } from "@/lib/session";
 
 type Search = { trial?: string; health?: string; delay?: string; sort?: string; status?: string; q?: string };
 
@@ -23,7 +21,6 @@ const STATUSES = [
   { key: "in_startup", label: "In start-up" },
   { key: "on_hold", label: "On hold" },
 ];
-
 const HEALTHS: SiteHealth[] = ["blocked", "at_risk", "on_track", "activated"];
 const DELAYS: DelayLevel[] = ["1_7", "8_30", "over_30"];
 const SORTS = [
@@ -55,6 +52,7 @@ function Offline() {
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
+  const user = await getSession();
 
   let tracked;
   try {
@@ -80,14 +78,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const health = HEALTHS.find((h) => h === sp.health);
   const delay = DELAYS.find((d) => d === sp.delay);
   const sort = SORTS.find((s) => s.key === sp.sort)?.key ?? "-delay";
-
   const status = STATUSES.find((x) => x.key === sp.status)?.key;
   const q = (sp.q ?? "").trim().slice(0, 80);
 
   const [trial, page] = await Promise.all([getTrial(chosen.id), getDashboard(chosen.id, { sort })]);
   const all = page.items;
-  const details = await getSiteDetails(all.filter((r) => r.activation_status === "in_startup").map((r) => r.id));
-  const insight = trialInsight(all, details);
+  const live = all.filter((r) => r.activation_status === "in_startup");
+  const details = await getSiteDetails(live.map((r) => r.id));
   const urgent = openTasks(details).filter((t) => URGENT.includes(t.kind));
   const counts = Object.fromEntries(HEALTHS.map((h) => [h, all.filter((s) => s.health === h).length])) as Record<SiteHealth, number>;
   const needle = q.toLowerCase();
@@ -98,154 +95,136 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       (!status || s.activation_status === status) &&
       (!needle || `${s.site.name} ${location(s.site)}`.toLowerCase().includes(needle)),
   );
-  const worst = Math.max(0, ...all.map((s) => s.top_blocker?.days_overdue ?? 0));
-  const base = { trial: String(chosen.id), sort: sort === "-delay" ? undefined : sort, q: q || undefined };
-  const filtered = !!(health || delay || status || q);
+  const base = { trial: String(chosen.id), sort: sort === "-delay" ? undefined : sort };
+  const active = [
+    status && { label: STATUSES.find((x) => x.key === status)!.label, off: href({ ...base, health, delay, q: q || undefined }) },
+    delay && { label: DELAY_LABEL[delay], off: href({ ...base, health, status, q: q || undefined }) },
+    q && { label: `“${q}”`, off: href({ ...base, health, delay, status }) },
+  ].filter(Boolean) as { label: string; off: string }[];
+  const blocked = counts.blocked;
+  const first = user?.name.split(" ")[0];
 
   return (
     <>
-      <section className="hero">
+      <section className="dh">
         <div>
-          <div className="eyebrow">
-            <span className="eyebrow__dot" />
-            Site activation · Demo data
+          <div className="dh__eyebrow">
+            {first ? `Welcome back, ${first}` : "Dashboard"} · {trial.acronym ?? trial.nct_id}
           </div>
-          <h1 className="hero__title">
-            <span className="t1">See the blocker</span>
-            <span className="t2">before it delays</span>
-            <span className="t3">activation.</span>
+          <h1 className="dh__title">
+            {blocked > 0 ? (
+              <>
+                <b>{blocked}</b> of {live.length} sites are blocked
+              </>
+            ) : (
+              "No sites are blocked"
+            )}
           </h1>
-          <p className="hero__lede">
-            For every trial site: how ready it is, which milestone is holding it up, who owns the next action, and when it will really
-            go live.
+          <p className="dh__sub">
+            {trial.title}. Average readiness {Math.round(trial.avg_readiness_pct ?? 0)}%.
           </p>
-          <div className="meta">
-            <div className="meta__item">
-              <div className="label">Logic</div>
-              <div className="meta__value">Deterministic</div>
-            </div>
-            <div className="meta__item">
-              <div className="label">Data</div>
-              <div className="meta__value">Registry + synthetic</div>
-            </div>
-            <div className="meta__item">
-              <div className="label">Status</div>
-              <div className="meta__value">Monitoring</div>
-            </div>
-          </div>
         </div>
-        <Orbit
-          avgReadiness={trial.avg_readiness_pct}
-          sitesInStartup={trial.activation_counts.in_startup}
-          blockedSites={counts.blocked}
-          worstDelayDays={worst}
-        />
+        <div className="dh__cta">
+          <Link href="/brief" className="btn btn--primary">
+            Today’s brief{urgent.length ? ` · ${urgent.length}` : ""} →
+          </Link>
+          <Link href="/insights" className="btn">
+            Insights
+          </Link>
+        </div>
       </section>
 
-      <section className="section" aria-labelledby="trial-h">
-        <div className="section__head">
-          <div>
-            <div className="label">Trial</div>
-            <h2 className="section__title" id="trial-h">
-              {trial.acronym ?? trial.nct_id}
-            </h2>
-            <p className="section__sub">{trial.title}</p>
-          </div>
-        </div>
-
-        {tracked.length > 1 && (
-          <div className="filter-group" style={{ marginBottom: 18 }}>
-            <span className="label">Trial</span>
-            {tracked.map((t) => (
-              <Link key={t.id} href={href({ trial: String(t.id) })} className={`pill ${t.id === chosen.id ? "pill--active" : ""}`}>
-                {t.acronym ?? t.nct_id} · {t.activation_counts.in_startup} in start-up
-              </Link>
-            ))}
-          </div>
-        )}
-
-        <div className="stats">
-          {HEALTHS.map((h) => (
-            <Link
-              key={h}
-              href={href({ ...base, health: health === h ? undefined : h, delay, status })}
-              className={`card stat stat--${h} ${health === h ? "stat--on" : ""}`}
-              aria-pressed={health === h}
-            >
-              <div className="label">{HEALTH_LABEL[h]}</div>
-              <div className="stat__num">{counts[h]}</div>
+      {tracked.length > 1 && (
+        <div className="seg" role="tablist" aria-label="Trial">
+          {tracked.map((t) => (
+            <Link key={t.id} href={href({ trial: String(t.id) })} className={t.id === chosen.id ? "on" : ""}>
+              {t.acronym ?? t.nct_id}
             </Link>
           ))}
         </div>
+      )}
 
-        <div className="insights">
-          <div className="card panel">
-            <div className="label">Trial summary</div>
-            <TrialSummary insight={insight} />
-          </div>
-          <div className="card panel">
-            <div className="label">Needs attention</div>
-            <AttentionList tasks={urgent.slice(0, 5)} total={urgent.length} />
-          </div>
-        </div>
+      <nav className="views" aria-label="Filter by health">
+        <Link href={href({ ...base, delay, status, q: q || undefined })} className={!health ? "on" : ""}>
+          All <span>{all.length}</span>
+        </Link>
+        {HEALTHS.map((h) => (
+          <Link key={h} href={href({ ...base, health: h, delay, status, q: q || undefined })} className={health === h ? "on" : ""}>
+            <i className="dot" data-h={h} /> {HEALTH_LABEL[h]} <span>{counts[h]}</span>
+          </Link>
+        ))}
+      </nav>
 
-        <form action="/" method="get" className="search" role="search">
+      <div className="toolbar">
+        <form action="/" method="get" className="toolbar__search" role="search">
           <input type="hidden" name="trial" value={chosen.id} />
           {base.sort && <input type="hidden" name="sort" value={base.sort} />}
           {health && <input type="hidden" name="health" value={health} />}
           {delay && <input type="hidden" name="delay" value={delay} />}
           {status && <input type="hidden" name="status" value={status} />}
-          <input name="q" defaultValue={q} placeholder="Search site, city, or state" aria-label="Search sites" />
-          <button className="btn" type="submit">Search</button>
+          <input name="q" defaultValue={q} placeholder="Search sites, cities, states…" aria-label="Search sites" />
         </form>
+        <details className="menu">
+          <summary className="btn">
+            Filters{active.length > 0 && <span className="badge">{active.filter((a) => !a.label.startsWith("“")).length || ""}</span>}
+          </summary>
+          <div className="menu__pop">
+            <div className="menu__group">
+              <span className="label">Status</span>
+              <Link href={href({ ...base, health, delay, q: q || undefined })} className={`pill ${!status ? "pill--active" : ""}`}>Any</Link>
+              {STATUSES.map((x) => (
+                <Link key={x.key} href={href({ ...base, health, delay, status: x.key, q: q || undefined })} className={`pill ${status === x.key ? "pill--active" : ""}`}>
+                  {x.label}
+                </Link>
+              ))}
+            </div>
+            <div className="menu__group">
+              <span className="label">Delay</span>
+              <Link href={href({ ...base, health, status, q: q || undefined })} className={`pill ${!delay ? "pill--active" : ""}`}>Any</Link>
+              {DELAYS.map((d) => (
+                <Link key={d} href={href({ ...base, health, delay: d, status, q: q || undefined })} className={`pill ${delay === d ? "pill--active" : ""}`}>
+                  {DELAY_LABEL[d]}
+                </Link>
+              ))}
+            </div>
+            <div className="menu__group">
+              <span className="label">Sort</span>
+              {SORTS.map((s) => (
+                <Link
+                  key={s.key}
+                  href={href({ trial: String(chosen.id), sort: s.key === "-delay" ? undefined : s.key, health, delay, status, q: q || undefined })}
+                  className={`pill ${sort === s.key ? "pill--active" : ""}`}
+                >
+                  {s.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </details>
+      </div>
 
-        <div className="filters">
-          <div className="filter-group">
-            <span className="label">Status</span>
-            <Link href={href({ ...base, health, delay })} className={`pill ${!status ? "pill--active" : ""}`}>Any</Link>
-            {STATUSES.map((x) => (
-              <Link key={x.key} href={href({ ...base, health, delay, status: x.key })} className={`pill ${status === x.key ? "pill--active" : ""}`}>
-                {x.label}
-              </Link>
-            ))}
-          </div>
-          <div className="filter-group">
-            <span className="label">Delay</span>
-            <Link href={href({ ...base, health, status })} className={`pill ${!delay ? "pill--active" : ""}`}>Any</Link>
-            {DELAYS.map((d) => (
-              <Link key={d} href={href({ ...base, health, delay: d, status })} className={`pill ${delay === d ? "pill--active" : ""}`}>
-                {DELAY_LABEL[d]}
-              </Link>
-            ))}
-          </div>
-          <div className="filter-group">
-            <span className="label">Sort</span>
-            {SORTS.map((s) => (
-              <Link
-                key={s.key}
-                href={href({ trial: String(chosen.id), sort: s.key === "-delay" ? undefined : s.key, health, delay, status, q: q || undefined })}
-                className={`pill ${sort === s.key ? "pill--active" : ""}`}
-              >
-                {s.label}
-              </Link>
-            ))}
-          </div>
-          {filtered && (
-            <Link href={href({ trial: String(chosen.id), sort: base.sort })} className="pill">Clear filters</Link>
-          )}
+      {active.length > 0 && (
+        <div className="fchips">
+          {active.map((a) => (
+            <Link key={a.label} href={a.off} className="fchip">
+              {a.label} <span aria-hidden="true">×</span>
+            </Link>
+          ))}
+          <Link href={href({ trial: String(chosen.id), health })} className="fchip fchip--clear">Clear all</Link>
         </div>
+      )}
 
-        <p className="data-note">Sites are real ClinicalTrials.gov records. Milestones, owners and dates are synthetic demo data.</p>
-
-        {visible.length === 0 ? (
-          <div className="card empty">
-            <h3>No trial sites match</h3>
-            <p>Try clearing a filter or search.</p>
-          </div>
-        ) : (
-          <SiteTable sites={visible} />
-        )}
-      </section>
+      {visible.length === 0 ? (
+        <div className="empty">
+          <h3>No trial sites match</h3>
+          <p>Try clearing a filter or search.</p>
+        </div>
+      ) : (
+        <SiteList sites={visible} />
+      )}
+      <p className="data-note" style={{ margin: "14px 2px 56px" }}>
+        {plural(visible.length, "site")} shown. Sites are real ClinicalTrials.gov records; milestones, owners and dates are synthetic demo data.
+      </p>
     </>
   );
 }

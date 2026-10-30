@@ -44,7 +44,7 @@ export default async function Trials() {
                 <span>{t.sponsor_name ?? "Sponsor not listed"}</span>
                 <span>{t.site_count} registry sites</span>
               </div>
-              <div className="site-row__tags" style={{ marginTop: 12 }}>
+              <div className="chips" style={{ marginTop: 12 }}>
                 <SourceTag source={t.source_type} what="Trial" />
                 {n > 0 ? <span className="tag tag--real">Tracking {n} trial sites</span> : <span className="tag">Not tracked</span>}
               </div>

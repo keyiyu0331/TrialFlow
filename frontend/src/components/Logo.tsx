@@ -10,7 +10,13 @@ export default function Logo() {
           </linearGradient>
         </defs>
         <path d="M4 5h5M4 13h5M4 21h5" stroke="url(#lg)" strokeWidth="2" strokeLinecap="round" />
-        <path d="M9 5c5 0 5 8 9 8M9 21c5 0 5-8 9-8M9 13h9" stroke="url(#lg)" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+        <path
+          d="M9 5c5 0 5 8 9 8M9 21c5 0 5-8 9-8M9 13h9"
+          stroke="url(#lg)"
+          strokeWidth="1.6"
+          fill="none"
+          strokeLinecap="round"
+        />
         <circle cx="21" cy="13" r="3.2" fill="url(#lg)" />
       </svg>
       <span className="brand__name">

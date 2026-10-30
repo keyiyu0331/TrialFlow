@@ -90,7 +90,8 @@ export function buildBrief(
   const changes: Change[] = [];
   for (const s of sites) {
     for (const e of events.get(s.id) ?? []) {
-      if (dayNumber(e.occurred_at) >= cutoff) changes.push({ siteId: s.id, siteName: s.site.name, text: describe(e), at: e.occurred_at });
+      if (dayNumber(e.occurred_at) >= cutoff)
+        changes.push({ siteId: s.id, siteName: s.site.name, text: describe(e), at: e.occurred_at });
     }
   }
   changes.sort((a, b) => b.at.localeCompare(a.at));
@@ -105,7 +106,11 @@ export function buildBrief(
 
   const readyForGreenLight: SiteRef[] = sites
     .filter((s) => s.milestones.some((m) => m.template_code === "GREEN_LIGHT" && m.is_ready && m.status !== "complete"))
-    .map((s) => ({ siteId: s.id, siteName: s.site.name, note: "Everything else is done. Only the sponsor green light is left." }));
+    .map((s) => ({
+      siteId: s.id,
+      siteName: s.site.name,
+      note: "Everything else is done. Only the sponsor green light is left.",
+    }));
 
   return {
     today,

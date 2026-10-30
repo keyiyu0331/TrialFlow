@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.ps1 text eol=crlf
+# Registry pull and CSVs are stored byte-for-byte; never normalize them.
+data/** -text

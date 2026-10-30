@@ -72,9 +72,7 @@ class UserOut(ORMModel):
 class SiteOut(ORMModel):
     id: int
     name: str
-    is_placeholder_name: bool = Field(
-        description='True for registry placeholders like "Research Site"'
-    )
+    is_placeholder_name: bool = Field(description='True for registry placeholders like "Research Site"')
     city: str | None
     state: str | None
     country: str | None
@@ -183,9 +181,7 @@ class MilestoneUpdate(BaseModel):
     due_date: date | None = None
     blocked_reason: str | None = None
     note: str | None = Field(default=None, description="Optional comment stored on the events")
-    changed_by_user_id: int | None = Field(
-        default=None, description="Acting user (no auth in the MVP)"
-    )
+    changed_by_user_id: int | None = Field(default=None, description="Acting user (no auth in the MVP)")
 
     @model_validator(mode="after")
     def _require_a_change(self):

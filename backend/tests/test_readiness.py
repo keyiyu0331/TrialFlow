@@ -8,7 +8,6 @@ SIV after all eight, GREEN_LIGHT after SIV.
 from datetime import date, timedelta
 
 import pytest
-
 from app.enums import DelayLevel, MilestoneStatus, SiteHealth
 from app.services.readiness import (
     MilestoneInput,

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { DELAY_SHORT, fmtDate, plural, roleLabel, STATUS_LABEL } from "@/lib/format";
 import type { Task } from "@/lib/insights";
-import { DELAY_SHORT, STATUS_LABEL, fmtDate, plural, roleLabel } from "@/lib/format";
 import { TaskChip } from "./Chips";
 import { Editor } from "./MilestoneList";
 import { useMe } from "./SessionProvider";
@@ -21,7 +21,9 @@ export default function TaskList({ tasks, showOwner }: { tasks: Task[]; showOwne
             <div>
               <div className="mrow__name">{m.name}</div>
               <div className="cell-sub">
-                <Link href={`/sites/${t.siteId}`} className="link">{t.siteName}</Link>
+                <Link href={`/sites/${t.siteId}`} className="link">
+                  {t.siteName}
+                </Link>
               </div>
               {m.status === "blocked" && m.blocked_reason && <div className="mrow__reason">{m.blocked_reason}</div>}
             </div>
@@ -33,9 +35,15 @@ export default function TaskList({ tasks, showOwner }: { tasks: Task[]; showOwne
               <div className="cell-main mono">{fmtDate(m.due_date, true)}</div>
               <div className="cell-sub">
                 {m.is_overdue ? (
-                  <span className="late">{plural(m.days_overdue, "day")} late · {DELAY_SHORT[m.delay_level]}</span>
+                  <span className="late">
+                    {plural(m.days_overdue, "day")} late · {DELAY_SHORT[m.delay_level]}
+                  </span>
                 ) : t.until !== null ? (
-                  t.until === 0 ? "Due today" : `Due in ${plural(t.until, "day")}`
+                  t.until === 0 ? (
+                    "Due today"
+                  ) : (
+                    `Due in ${plural(t.until, "day")}`
+                  )
                 ) : (
                   "No due date"
                 )}
@@ -51,7 +59,13 @@ export default function TaskList({ tasks, showOwner }: { tasks: Task[]; showOwne
                 <div className="cell-sub">{t.trialLabel}</div>
               )}
             </div>
-            <button className="btn" disabled={!canEdit(m.owner?.id)} title={canEdit(m.owner?.id) ? undefined : "Only the owner can update this"} onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
+            <button
+              className="btn"
+              disabled={!canEdit(m.owner?.id)}
+              title={canEdit(m.owner?.id) ? undefined : "Only the owner can update this"}
+              onClick={() => setOpen(open === m.id ? null : m.id)}
+              aria-expanded={open === m.id}
+            >
               {open === m.id ? "Close" : "Update"}
             </button>
             {open === m.id && <Editor m={m} onDone={() => setOpen(null)} />}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { TrialSiteSummary } from "@/lib/api";
-import { HEALTH_LABEL, fmtDate, location, plural, roleLabel } from "@/lib/format";
+import { fmtDate, HEALTH_LABEL, location, plural, roleLabel } from "@/lib/format";
 
 /** Flat, scannable list: one line per trial site, the blocker and its owner right where you look. */
 export default function SiteList({ sites }: { sites: TrialSiteSummary[] }) {
@@ -48,8 +48,12 @@ export default function SiteList({ sites }: { sites: TrialSiteSummary[] }) {
               )}
             </div>
             <div>
-              <div className="sl__name sl__name--sm mono">{fmtDate(s.health === "activated" ? s.actual_activation_date : s.projected_activation_date)}</div>
-              <div className="sl__sub">{s.site_slip_days > 0 ? <span className="late">+{s.site_slip_days}d vs target</span> : "On target"}</div>
+              <div className="sl__name sl__name--sm mono">
+                {fmtDate(s.health === "activated" ? s.actual_activation_date : s.projected_activation_date)}
+              </div>
+              <div className="sl__sub">
+                {s.site_slip_days > 0 ? <span className="late">+{s.site_slip_days}d vs target</span> : "On target"}
+              </div>
             </div>
           </Link>
         );

@@ -1,0 +1,4 @@
+# Bulk reformats to skip in git blame. Enable once: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Format code with ruff and Biome
+4fde847da511ee87020cccc890a5d69e7194090b

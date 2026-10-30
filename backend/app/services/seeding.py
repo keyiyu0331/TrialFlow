@@ -13,14 +13,13 @@ the dashboard and is checked by tests.
 
 import random
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .. import models as m
 from ..enums import (
-    SATISFIED_STATUSES,
     ActivationStatus,
     EventType,
     MilestoneStatus,
@@ -45,8 +44,14 @@ def _done(*codes: str) -> dict[str, str]:
 
 
 _EIGHT = (
-    "IRB_APPROVAL", "CONTRACT_EXECUTED", "BUDGET_FINALIZED", "REGULATORY_DOCS",
-    "STAFF_TRAINING", "PHARMACY_SETUP", "LAB_SYSTEMS_ACCESS", "DRUG_SHIPMENT",
+    "IRB_APPROVAL",
+    "CONTRACT_EXECUTED",
+    "BUDGET_FINALIZED",
+    "REGULATORY_DOCS",
+    "STAFF_TRAINING",
+    "PHARMACY_SETUP",
+    "LAB_SYSTEMS_ACCESS",
+    "DRUG_SHIPMENT",
 )
 _ALL_BUT = lambda *skip: _done(*(c for c in _EIGHT if c not in skip))  # noqa: E731
 
@@ -61,57 +66,144 @@ class Scenario:
     activation: ActivationStatus = ActivationStatus.in_startup
 
 
-SCENARIOS: dict[str, Scenario] = {s.label: s for s in (
-    Scenario("contract_stall", 80,
-             {**_ALL_BUT("CONTRACT_EXECUTED"), "CONTRACT_EXECUTED": _blocked("Legal review: indemnification language unresolved")},
-             SiteHealth.blocked),
-    Scenario("irb_delay", 75, {**_ALL_BUT("IRB_APPROVAL", "DRUG_SHIPMENT"), "IRB_APPROVAL": P}, SiteHealth.blocked),
-    Scenario("irb_delay_long", 100, {**_ALL_BUT("IRB_APPROVAL", "DRUG_SHIPMENT"), "IRB_APPROVAL": P}, SiteHealth.blocked),
-    Scenario("budget_dispute", 62,
-             {**_ALL_BUT("CONTRACT_EXECUTED", "BUDGET_FINALIZED"), "CONTRACT_EXECUTED": P,
-              "BUDGET_FINALIZED": _blocked("Awaiting sponsor response on per-visit rates")},
-             SiteHealth.blocked),
-    Scenario("pharmacy_delay", 55,
-             {**_done("IRB_APPROVAL", "BUDGET_FINALIZED", "REGULATORY_DOCS", "STAFF_TRAINING", "LAB_SYSTEMS_ACCESS"),
-              "CONTRACT_EXECUTED": P, "PHARMACY_SETUP": P},
-             SiteHealth.blocked),
-    Scenario("shipment_late", 66, {**_ALL_BUT("DRUG_SHIPMENT"), "DRUG_SHIPMENT": P}, SiteHealth.blocked),
-    Scenario("lab_access_delay", 45,
-             {**_done("IRB_APPROVAL", "BUDGET_FINALIZED", "REGULATORY_DOCS", "STAFF_TRAINING", "PHARMACY_SETUP"),
-              "CONTRACT_EXECUTED": P, "LAB_SYSTEMS_ACCESS": P},
-             SiteHealth.blocked),
-    Scenario("training_gap", 50,
-             {**_ALL_BUT("CONTRACT_EXECUTED", "STAFF_TRAINING"), "CONTRACT_EXECUTED": P, "STAFF_TRAINING": P},
-             SiteHealth.blocked),
-    Scenario("on_hold", 90,
-             {**_ALL_BUT("CONTRACT_EXECUTED"), "CONTRACT_EXECUTED": _blocked("Site paused start-up pending PI change")},
-             SiteHealth.blocked, activation=ActivationStatus.on_hold),
-    Scenario("at_risk_slack", 60, {**_ALL_BUT("CONTRACT_EXECUTED"), "CONTRACT_EXECUTED": P},
-             SiteHealth.at_risk, due_shift={"CONTRACT_EXECUTED": 5}),
-    Scenario("on_track_mid", 40,
-             {**_done("BUDGET_FINALIZED", "REGULATORY_DOCS", "STAFF_TRAINING", "PHARMACY_SETUP", "LAB_SYSTEMS_ACCESS"),
-              "IRB_APPROVAL": P, "CONTRACT_EXECUTED": P},
-             SiteHealth.on_track),
-    Scenario("on_track_early", 14,
-             {"REGULATORY_DOCS": C, "IRB_APPROVAL": P, "CONTRACT_EXECUTED": P, "BUDGET_FINALIZED": P, "STAFF_TRAINING": P},
-             SiteHealth.on_track),
-    Scenario("na_pharmacy", 35,
-             {**_done("REGULATORY_DOCS", "STAFF_TRAINING", "BUDGET_FINALIZED", "LAB_SYSTEMS_ACCESS"),
-              "PHARMACY_SETUP": NA, "DRUG_SHIPMENT": NA, "IRB_APPROVAL": P, "CONTRACT_EXECUTED": P},
-             SiteHealth.on_track),
-    Scenario("almost_ready", 66, {**_ALL_BUT(), "SIV": P}, SiteHealth.on_track),
-    Scenario("green_light_pending", 70, {**_ALL_BUT(), "SIV": C, "GREEN_LIGHT": P}, SiteHealth.on_track),
-    Scenario("activated_a", 105, {**_ALL_BUT(), "SIV": C, "GREEN_LIGHT": C}, SiteHealth.activated,
-             activation=ActivationStatus.activated),
-    Scenario("activated_b", 130, {**_ALL_BUT(), "SIV": C, "GREEN_LIGHT": C}, SiteHealth.activated,
-             activation=ActivationStatus.activated),
-)}
+SCENARIOS: dict[str, Scenario] = {
+    s.label: s
+    for s in (
+        Scenario(
+            "contract_stall",
+            80,
+            {
+                **_ALL_BUT("CONTRACT_EXECUTED"),
+                "CONTRACT_EXECUTED": _blocked("Legal review: indemnification language unresolved"),
+            },
+            SiteHealth.blocked,
+        ),
+        Scenario("irb_delay", 75, {**_ALL_BUT("IRB_APPROVAL", "DRUG_SHIPMENT"), "IRB_APPROVAL": P}, SiteHealth.blocked),
+        Scenario(
+            "irb_delay_long", 100, {**_ALL_BUT("IRB_APPROVAL", "DRUG_SHIPMENT"), "IRB_APPROVAL": P}, SiteHealth.blocked
+        ),
+        Scenario(
+            "budget_dispute",
+            62,
+            {
+                **_ALL_BUT("CONTRACT_EXECUTED", "BUDGET_FINALIZED"),
+                "CONTRACT_EXECUTED": P,
+                "BUDGET_FINALIZED": _blocked("Awaiting sponsor response on per-visit rates"),
+            },
+            SiteHealth.blocked,
+        ),
+        Scenario(
+            "pharmacy_delay",
+            55,
+            {
+                **_done("IRB_APPROVAL", "BUDGET_FINALIZED", "REGULATORY_DOCS", "STAFF_TRAINING", "LAB_SYSTEMS_ACCESS"),
+                "CONTRACT_EXECUTED": P,
+                "PHARMACY_SETUP": P,
+            },
+            SiteHealth.blocked,
+        ),
+        Scenario("shipment_late", 66, {**_ALL_BUT("DRUG_SHIPMENT"), "DRUG_SHIPMENT": P}, SiteHealth.blocked),
+        Scenario(
+            "lab_access_delay",
+            45,
+            {
+                **_done("IRB_APPROVAL", "BUDGET_FINALIZED", "REGULATORY_DOCS", "STAFF_TRAINING", "PHARMACY_SETUP"),
+                "CONTRACT_EXECUTED": P,
+                "LAB_SYSTEMS_ACCESS": P,
+            },
+            SiteHealth.blocked,
+        ),
+        Scenario(
+            "training_gap",
+            50,
+            {**_ALL_BUT("CONTRACT_EXECUTED", "STAFF_TRAINING"), "CONTRACT_EXECUTED": P, "STAFF_TRAINING": P},
+            SiteHealth.blocked,
+        ),
+        Scenario(
+            "on_hold",
+            90,
+            {**_ALL_BUT("CONTRACT_EXECUTED"), "CONTRACT_EXECUTED": _blocked("Site paused start-up pending PI change")},
+            SiteHealth.blocked,
+            activation=ActivationStatus.on_hold,
+        ),
+        Scenario(
+            "at_risk_slack",
+            60,
+            {**_ALL_BUT("CONTRACT_EXECUTED"), "CONTRACT_EXECUTED": P},
+            SiteHealth.at_risk,
+            due_shift={"CONTRACT_EXECUTED": 5},
+        ),
+        Scenario(
+            "on_track_mid",
+            40,
+            {
+                **_done(
+                    "BUDGET_FINALIZED", "REGULATORY_DOCS", "STAFF_TRAINING", "PHARMACY_SETUP", "LAB_SYSTEMS_ACCESS"
+                ),
+                "IRB_APPROVAL": P,
+                "CONTRACT_EXECUTED": P,
+            },
+            SiteHealth.on_track,
+        ),
+        Scenario(
+            "on_track_early",
+            14,
+            {
+                "REGULATORY_DOCS": C,
+                "IRB_APPROVAL": P,
+                "CONTRACT_EXECUTED": P,
+                "BUDGET_FINALIZED": P,
+                "STAFF_TRAINING": P,
+            },
+            SiteHealth.on_track,
+        ),
+        Scenario(
+            "na_pharmacy",
+            35,
+            {
+                **_done("REGULATORY_DOCS", "STAFF_TRAINING", "BUDGET_FINALIZED", "LAB_SYSTEMS_ACCESS"),
+                "PHARMACY_SETUP": NA,
+                "DRUG_SHIPMENT": NA,
+                "IRB_APPROVAL": P,
+                "CONTRACT_EXECUTED": P,
+            },
+            SiteHealth.on_track,
+        ),
+        Scenario("almost_ready", 66, {**_ALL_BUT(), "SIV": P}, SiteHealth.on_track),
+        Scenario("green_light_pending", 70, {**_ALL_BUT(), "SIV": C, "GREEN_LIGHT": P}, SiteHealth.on_track),
+        Scenario(
+            "activated_a",
+            105,
+            {**_ALL_BUT(), "SIV": C, "GREEN_LIGHT": C},
+            SiteHealth.activated,
+            activation=ActivationStatus.activated,
+        ),
+        Scenario(
+            "activated_b",
+            130,
+            {**_ALL_BUT(), "SIV": C, "GREEN_LIGHT": C},
+            SiteHealth.activated,
+            activation=ActivationStatus.activated,
+        ),
+    )
+}
 
 # Scenario per seeded site, in the order sites are picked for each trial.
 TRIAL_PLANS: dict[str, tuple[str, ...]] = {
-    "NCT07578116": ("contract_stall", "irb_delay", "budget_dispute", "pharmacy_delay", "shipment_late",
-                    "on_track_mid", "on_track_early", "almost_ready", "activated_a", "lab_access_delay",
-                    "training_gap", "at_risk_slack"),
+    "NCT07578116": (
+        "contract_stall",
+        "irb_delay",
+        "budget_dispute",
+        "pharmacy_delay",
+        "shipment_late",
+        "on_track_mid",
+        "on_track_early",
+        "almost_ready",
+        "activated_a",
+        "lab_access_delay",
+        "training_gap",
+        "at_risk_slack",
+    ),
     "NCT06312176": ("irb_delay_long", "green_light_pending", "na_pharmacy", "on_hold", "activated_b", "on_track_mid"),
 }
 
@@ -129,7 +221,20 @@ COMPLETION_NOTES = {
 }
 
 FIRST_NAMES = ("Amara", "Jonas", "Lucia", "Devon", "Mei", "Tariq", "Sofia", "Owen", "Ingrid", "Rahul", "Nadia", "Caleb")
-LAST_NAMES = ("Okoye", "Brandt", "Moreno", "Hale", "Tanaka", "Haddad", "Rossi", "Quinn", "Lund", "Mehta", "Farah", "Whitaker")
+LAST_NAMES = (
+    "Okoye",
+    "Brandt",
+    "Moreno",
+    "Hale",
+    "Tanaka",
+    "Haddad",
+    "Rossi",
+    "Quinn",
+    "Lund",
+    "Mehta",
+    "Farah",
+    "Whitaker",
+)
 
 
 @dataclass(frozen=True)
@@ -140,7 +245,7 @@ class SeedResult:
 
 
 def _at(day: date, hour: int = 15) -> datetime:
-    return datetime.combine(day, time(hour, 0), tzinfo=timezone.utc)
+    return datetime.combine(day, time(hour, 0), tzinfo=UTC)
 
 
 def _spread(items: list, count: int) -> list:
@@ -172,8 +277,9 @@ def clear_seed(session: Session) -> None:
     session.flush()
 
 
-def seed(session: Session, as_of: date, seed_trials: tuple[tuple[str, int], ...] = SEED_TRIALS,
-         rng_seed: int = 7) -> SeedResult:
+def seed(
+    session: Session, as_of: date, seed_trials: tuple[tuple[str, int], ...] = SEED_TRIALS, rng_seed: int = 7
+) -> SeedResult:
     """Create the synthetic subset. Raises ValueError if it was already seeded."""
     if is_seeded(session):
         raise ValueError("already seeded; call clear_seed first")
@@ -188,7 +294,9 @@ def seed(session: Session, as_of: date, seed_trials: tuple[tuple[str, int], ...]
         if trial is None:
             continue
         eligible = session.scalars(
-            select(m.TrialSite).join(m.Site).where(m.TrialSite.trial_id == trial.id, ~m.Site.is_placeholder_name)
+            select(m.TrialSite)
+            .join(m.Site)
+            .where(m.TrialSite.trial_id == trial.id, ~m.Site.is_placeholder_name)
             .order_by(m.TrialSite.ctgov_location_index)
         ).all()
         plan = TRIAL_PLANS[nct_id]
@@ -196,11 +304,14 @@ def seed(session: Session, as_of: date, seed_trials: tuple[tuple[str, int], ...]
         trial.target_site_count = len(picked)
         trial.target_fpi_date = as_of + timedelta(days=30)
 
-        for ts, label in zip(picked, plan):
+        for ts, label in zip(picked, plan, strict=False):  # fewer eligible sites than planned is fine
             site_users = _site_users(session, ts.site)
-            owners = {**site_users, UserRole.startup_manager: sponsor["manager"],
-                      UserRole.sponsor_supply: sponsor["supply"],
-                      UserRole.cra: sponsor["cras"][cra_cycle % len(sponsor["cras"])]}
+            owners = {
+                **site_users,
+                UserRole.startup_manager: sponsor["manager"],
+                UserRole.sponsor_supply: sponsor["supply"],
+                UserRole.cra: sponsor["cras"][cra_cycle % len(sponsor["cras"])],
+            }
             cra_cycle += 1
             events_total += _apply_scenario(session, ts, SCENARIOS[label], owners, as_of, rng)
             picked_total += 1
@@ -221,10 +332,13 @@ def _sponsor_users(session: Session) -> dict:
 
     users = {
         "manager": make("Priya Nair", "priya.nair@example.org", UserRole.startup_manager),
-        "cras": [make("Marco Ruiz", "marco.ruiz@example.org", UserRole.cra),
-                 make("Elena Petrova", "elena.petrova@example.org", UserRole.cra)],
-        "supply": make("Sponsor clinical supply", "clinical.supply@example.org", UserRole.sponsor_supply,
-                       "Sponsor clinical supply"),
+        "cras": [
+            make("Marco Ruiz", "marco.ruiz@example.org", UserRole.cra),
+            make("Elena Petrova", "elena.petrova@example.org", UserRole.cra),
+        ],
+        "supply": make(
+            "Sponsor clinical supply", "clinical.supply@example.org", UserRole.sponsor_supply, "Sponsor clinical supply"
+        ),
     }
     session.flush()
     return users
@@ -236,27 +350,45 @@ def _site_users(session: Session, site: m.Site) -> dict[UserRole, m.User]:
     first2, last2 = FIRST_NAMES[(site.id + 4) % len(FIRST_NAMES)], LAST_NAMES[(site.id * 3 + 1) % len(LAST_NAMES)]
 
     def make(role: UserRole, name: str, email: str, team: str | None = None) -> m.User:
-        user = m.User(name=name, email=email.lower(), role=role, site_id=site.id, team_name=team,
-                      source_type=SourceType.synthetic)
+        user = m.User(
+            name=name, email=email.lower(), role=role, site_id=site.id, team_name=team, source_type=SourceType.synthetic
+        )
         session.add(user)
         return user
 
     users = {
-        UserRole.regulatory: make(UserRole.regulatory, f"{where} regulatory office", f"regulatory.{site.id}@example.org",
-                                  f"{where} regulatory office"),
-        UserRole.contracts: make(UserRole.contracts, f"{where} contracts office", f"contracts.{site.id}@example.org",
-                                 f"{where} contracts office"),
-        UserRole.pharmacist: make(UserRole.pharmacist, f"{where} research pharmacy", f"pharmacy.{site.id}@example.org",
-                                  f"{where} research pharmacy"),
-        UserRole.site_coordinator: make(UserRole.site_coordinator, f"{first} {last}", f"{first}.{last}.{site.id}@example.org"),
-        UserRole.lab_manager: make(UserRole.lab_manager, f"{first2} {last2}", f"{first2}.{last2}.{site.id}@example.org"),
+        UserRole.regulatory: make(
+            UserRole.regulatory,
+            f"{where} regulatory office",
+            f"regulatory.{site.id}@example.org",
+            f"{where} regulatory office",
+        ),
+        UserRole.contracts: make(
+            UserRole.contracts,
+            f"{where} contracts office",
+            f"contracts.{site.id}@example.org",
+            f"{where} contracts office",
+        ),
+        UserRole.pharmacist: make(
+            UserRole.pharmacist,
+            f"{where} research pharmacy",
+            f"pharmacy.{site.id}@example.org",
+            f"{where} research pharmacy",
+        ),
+        UserRole.site_coordinator: make(
+            UserRole.site_coordinator, f"{first} {last}", f"{first}.{last}.{site.id}@example.org"
+        ),
+        UserRole.lab_manager: make(
+            UserRole.lab_manager, f"{first2} {last2}", f"{first2}.{last2}.{site.id}@example.org"
+        ),
     }
     session.flush()
     return users
 
 
-def _apply_scenario(session: Session, ts: m.TrialSite, sc: Scenario, owners: dict[UserRole, m.User],
-                    as_of: date, rng: random.Random) -> int:
+def _apply_scenario(
+    session: Session, ts: m.TrialSite, sc: Scenario, owners: dict[UserRole, m.User], as_of: date, rng: random.Random
+) -> int:
     selected = as_of - timedelta(days=sc.selected_days_ago)
     milestones = instantiate_trial_site(session, ts, selected, owners)
     preds = {spec.code: spec.predecessors for spec in DEFAULT_TEMPLATES}
@@ -264,11 +396,21 @@ def _apply_scenario(session: Session, ts: m.TrialSite, sc: Scenario, owners: dic
     completed_on: dict[str, date] = {}
     events: list[m.MilestoneEvent] = []
 
-    def event(ms: m.Milestone, kind: EventType, old: str | None, new: str | None, when: datetime,
-              note: str | None = None) -> None:
-        events.append(m.MilestoneEvent(milestone_id=ms.id, changed_by_user_id=ms.owner_user_id, event_type=kind,
-                                       old_value=old, new_value=new, note=note, occurred_at=when,
-                                       source_type=SourceType.synthetic))
+    def event(
+        ms: m.Milestone, kind: EventType, old: str | None, new: str | None, when: datetime, note: str | None = None
+    ) -> None:
+        events.append(
+            m.MilestoneEvent(
+                milestone_id=ms.id,
+                changed_by_user_id=ms.owner_user_id,
+                event_type=kind,
+                old_value=old,
+                new_value=new,
+                note=note,
+                occurred_at=when,
+                source_type=SourceType.synthetic,
+            )
+        )
 
     original_green_due = milestones["GREEN_LIGHT"].due_date
     for spec in sorted(DEFAULT_TEMPLATES, key=lambda s: s.sort_order):
@@ -280,8 +422,14 @@ def _apply_scenario(session: Session, ts: m.TrialSite, sc: Scenario, owners: dic
         if shift:
             old_due = ms.due_date
             ms.due_date = old_due + timedelta(days=shift)
-            event(ms, EventType.due_date_change, old_due.isoformat(), ms.due_date.isoformat(),
-                  _at(as_of - timedelta(days=6)), "Due date moved after a site request")
+            event(
+                ms,
+                EventType.due_date_change,
+                old_due.isoformat(),
+                ms.due_date.isoformat(),
+                _at(as_of - timedelta(days=6)),
+                "Due date moved after a site request",
+            )
 
         if state is None:
             continue
@@ -303,7 +451,11 @@ def _apply_scenario(session: Session, ts: m.TrialSite, sc: Scenario, owners: dic
             event(ms, EventType.status_change, "in_progress", "complete", ms.completed_at, COMPLETION_NOTES[spec.code])
         elif state == P:
             started = max(ms.planned_start_date, as_of - timedelta(days=rng.randint(2, 12)))
-            ms.status, ms.started_at, ms.status_changed_at = MilestoneStatus.in_progress, _at(started, 14), _at(started, 14)
+            ms.status, ms.started_at, ms.status_changed_at = (
+                MilestoneStatus.in_progress,
+                _at(started, 14),
+                _at(started, 14),
+            )
             event(ms, EventType.status_change, "not_started", "in_progress", ms.started_at)
         elif state.startswith("blocked:"):
             reason = state.split(":", 1)[1]

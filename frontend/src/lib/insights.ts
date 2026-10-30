@@ -84,9 +84,13 @@ export function trialInsight(rows: TrialSiteSummary[], details: TrialSiteDetail[
     if (!b) continue;
     const ms = byId.get(r.id)?.milestones.find((m) => m.id === b.milestone_id);
     if (ms) area.set(ms.workstream, (area.get(ms.workstream) ?? 0) + 1);
-    if (b.days_overdue > (worst?.days ?? 0)) worst = { siteId: r.id, siteName: r.site.name, milestone: b.milestone_name, days: b.days_overdue };
+    if (b.days_overdue > (worst?.days ?? 0))
+      worst = { siteId: r.id, siteName: r.site.name, milestone: b.milestone_name, days: b.days_overdue };
   }
-  const dates = live.map((r) => r.projected_activation_date).filter((d): d is string => !!d).sort();
+  const dates = live
+    .map((r) => r.projected_activation_date)
+    .filter((d): d is string => !!d)
+    .sort();
   return {
     total: rows.length,
     inStartup: live.length,
@@ -147,7 +151,13 @@ export function cycleTimes(details: TrialSiteDetail[]): CycleStat[] {
     .map(([code, v]) => {
       const s = [...v.days].sort((a, b) => a - b);
       const mid = s.length >> 1;
-      return { code, name: v.name, n: s.length, median: s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2), bench: BENCH[code] ?? null };
+      return {
+        code,
+        name: v.name,
+        n: s.length,
+        median: s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2),
+        bench: BENCH[code] ?? null,
+      };
     });
 }
 

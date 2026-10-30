@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { demoSignIn, signIn, type LoginState } from "@/app/login/actions";
+import { demoSignIn, type LoginState, signIn } from "@/app/login/actions";
 import type { User } from "@/lib/api";
 import Logo from "./Logo";
 
@@ -14,7 +14,17 @@ const CHAIN = [
   { n: "Green light", s: "wait" },
 ];
 
-export default function LoginForm({ next, manager, staff, apiDown }: { next: string; manager?: User; staff?: User; apiDown: boolean }) {
+export default function LoginForm({
+  next,
+  manager,
+  staff,
+  apiDown,
+}: {
+  next: string;
+  manager?: User;
+  staff?: User;
+  apiDown: boolean;
+}) {
   const [portal, setPortal] = useState<"sponsor" | "site">("sponsor");
   const [state, action, pending] = useActionState<LoginState, FormData>(signIn, {});
   const hint = portal === "sponsor" ? manager : staff;
@@ -52,14 +62,26 @@ export default function LoginForm({ next, manager, staff, apiDown }: { next: str
           <p className="login__intro">Choose the view that fits your role.</p>
 
           <div className="login__roles" role="tablist" aria-label="Choose a role">
-            <button type="button" role="tab" aria-selected={portal === "sponsor"} className={portal === "sponsor" ? "on" : ""} onClick={() => setPortal("sponsor")}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={portal === "sponsor"}
+              className={portal === "sponsor" ? "on" : ""}
+              onClick={() => setPortal("sponsor")}
+            >
               <b>01</b>
               <span>
                 <strong>Start-up manager</strong>
                 <small>Every site, one view</small>
               </span>
             </button>
-            <button type="button" role="tab" aria-selected={portal === "site"} className={portal === "site" ? "on" : ""} onClick={() => setPortal("site")}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={portal === "site"}
+              className={portal === "site" ? "on" : ""}
+              onClick={() => setPortal("site")}
+            >
               <b>02</b>
               <span>
                 <strong>Site staff</strong>
@@ -72,9 +94,25 @@ export default function LoginForm({ next, manager, staff, apiDown }: { next: str
             <input type="hidden" name="portal" value={portal} />
             <input type="hidden" name="next" value={next} />
             <label htmlFor="email">Email</label>
-            <input id="email" name="email" type="email" required autoComplete="username" defaultValue={state.email ?? ""} key={state.email ?? "new"} placeholder={hint?.email ?? "name@example.org"} />
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="username"
+              defaultValue={state.email ?? ""}
+              key={state.email ?? "new"}
+              placeholder={hint?.email ?? "name@example.org"}
+            />
             <label htmlFor="password">Password</label>
-            <input id="password" name="password" type="password" required autoComplete="current-password" placeholder="Demo password: trialflow" />
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              placeholder="Demo password: trialflow"
+            />
             {state.error && (
               <p className="login__error" role="alert">
                 {state.error}
@@ -86,7 +124,8 @@ export default function LoginForm({ next, manager, staff, apiDown }: { next: str
               </p>
             )}
             <button className="login__submit" disabled={pending}>
-              {pending ? "Signing in…" : `Continue as ${portal === "sponsor" ? "start-up manager" : "site staff"}`} <span aria-hidden="true">↗</span>
+              {pending ? "Signing in…" : `Continue as ${portal === "sponsor" ? "start-up manager" : "site staff"}`}{" "}
+              <span aria-hidden="true">↗</span>
             </button>
           </form>
 
@@ -114,7 +153,8 @@ export default function LoginForm({ next, manager, staff, apiDown }: { next: str
             )}
           </div>
           <p className="login__note">
-            Prototype sign-in. Accounts are the synthetic users in the demo data, and every one uses the demo password. The backend does not enforce roles yet.
+            Prototype sign-in. Accounts are the synthetic users in the demo data, and every one uses the demo password.
+            The backend does not enforce roles yet.
           </p>
         </div>
       </section>

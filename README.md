@@ -66,6 +66,8 @@ Requires Python 3.11+.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r backend/requirements.txt
+pre-commit install              # ruff, Biome, and file checks on every commit
+git config blame.ignoreRevsFile .git-blame-ignore-revs   # skip the bulk-format commit in blame
 
 cd backend
 pytest                          # run the test suite

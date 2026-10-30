@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateMilestone, type Milestone, type MilestoneStatus } from "@/lib/api";
+import { useState } from "react";
+import { type Milestone, type MilestoneStatus, updateMilestone } from "@/lib/api";
+import { DELAY_SHORT, fmtDate, plural, roleLabel, STATUS_LABEL } from "@/lib/format";
 import { useMe } from "./SessionProvider";
-import { DELAY_SHORT, STATUS_LABEL, fmtDate, plural, roleLabel } from "@/lib/format";
 
 const STATUSES = Object.keys(STATUS_LABEL) as MilestoneStatus[];
 
@@ -51,7 +51,11 @@ export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
       <label>
         <span className="label">{status === "blocked" ? "Why is it blocked?" : "Note (optional)"}</span>
         {status === "blocked" ? (
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Legal redlines outstanding" />
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Legal redlines outstanding"
+          />
         ) : (
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add context for the history" />
         )}
@@ -87,7 +91,9 @@ export default function MilestoneList({ milestones }: { milestones: Milestone[] 
             <span className="status" data-s={m.status}>
               {STATUS_LABEL[m.status]}
             </span>
-            {m.is_impacted && m.status !== "complete" && <div className="cell-sub late">Pushed out by upstream delay</div>}
+            {m.is_impacted && m.status !== "complete" && (
+              <div className="cell-sub late">Pushed out by upstream delay</div>
+            )}
           </div>
           <div>
             <div className="cell-main mono">{fmtDate(m.due_date, true)}</div>
@@ -113,7 +119,13 @@ export default function MilestoneList({ milestones }: { milestones: Milestone[] 
               <span className="faint">Unassigned</span>
             )}
           </div>
-          <button className="btn" disabled={!canEdit(m.owner?.id)} title={canEdit(m.owner?.id) ? undefined : "Only the owner can update this milestone"} onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
+          <button
+            className="btn"
+            disabled={!canEdit(m.owner?.id)}
+            title={canEdit(m.owner?.id) ? undefined : "Only the owner can update this milestone"}
+            onClick={() => setOpen(open === m.id ? null : m.id)}
+            aria-expanded={open === m.id}
+          >
             {open === m.id ? "Close" : "Update"}
           </button>
           {open === m.id && <Editor m={m} onDone={() => setOpen(null)} />}

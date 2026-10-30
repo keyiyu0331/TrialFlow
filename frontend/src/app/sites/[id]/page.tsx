@@ -83,7 +83,9 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
         <div className="card kpi">
           <div className="label">Next action</div>
           <div className="kpi__value">{owner ? owner.name : "—"}</div>
-          <div className="kpi__sub">{owner ? `${roleLabel(owner.role)}${owner.team_name ? ` · ${owner.team_name}` : ""}` : "No open action"}</div>
+          <div className="kpi__sub">
+            {owner ? `${roleLabel(owner.role)}${owner.team_name ? ` · ${owner.team_name}` : ""}` : "No open action"}
+          </div>
         </div>
         <div className="card kpi">
           <div className="label">{site.health === "activated" ? "Activated" : "Projected activation"}</div>
@@ -91,7 +93,13 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
             {fmtDate(site.health === "activated" ? site.actual_activation_date : site.projected_activation_date, true)}
           </div>
           <div className="kpi__sub">
-            {site.site_slip_days > 0 ? <span className="late">+{site.site_slip_days}d vs target {fmtDate(site.target_activation_date, true)}</span> : `Target ${fmtDate(site.target_activation_date, true)}`}
+            {site.site_slip_days > 0 ? (
+              <span className="late">
+                +{site.site_slip_days}d vs target {fmtDate(site.target_activation_date, true)}
+              </span>
+            ) : (
+              `Target ${fmtDate(site.target_activation_date, true)}`
+            )}
           </div>
         </div>
       </div>
@@ -116,9 +124,18 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
           </div>
         </summary>
         <div className="legend" style={{ marginBottom: 14 }}>
-          <span><i style={{ background: "rgba(91,63,184,0.35)" }} />Complete</span>
-          <span><i style={{ background: "#fff", border: "1.5px solid var(--purple-2)" }} />In progress</span>
-          <span><i style={{ background: "rgba(193,69,106,0.25)", border: "1.5px solid var(--blocked)" }} />Blocking</span>
+          <span>
+            <i style={{ background: "rgba(91,63,184,0.35)" }} />
+            Complete
+          </span>
+          <span>
+            <i style={{ background: "#fff", border: "1.5px solid var(--purple-2)" }} />
+            In progress
+          </span>
+          <span>
+            <i style={{ background: "rgba(193,69,106,0.25)", border: "1.5px solid var(--blocked)" }} />
+            Blocking
+          </span>
         </div>
         <DependencyGraph graph={graph} />
       </details>
@@ -133,9 +150,22 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
           </div>
         </summary>
         <div className="legend" style={{ marginBottom: 14 }}>
-          <span><i style={{ background: "rgba(124,91,209,0.4)" }} />Planned</span>
-          <span><i style={{ background: "rgba(193,69,106,0.5)" }} />Late or blocked</span>
-          <span><i style={{ background: "repeating-linear-gradient(45deg, rgba(193,69,106,0.6) 0 2px, transparent 2px 5px)" }} />Projected slip</span>
+          <span>
+            <i style={{ background: "rgba(124,91,209,0.4)" }} />
+            Planned
+          </span>
+          <span>
+            <i style={{ background: "rgba(193,69,106,0.5)" }} />
+            Late or blocked
+          </span>
+          <span>
+            <i
+              style={{
+                background: "repeating-linear-gradient(45deg, rgba(193,69,106,0.6) 0 2px, transparent 2px 5px)",
+              }}
+            />
+            Projected slip
+          </span>
         </div>
         <Timeline milestones={site.milestones} />
       </details>

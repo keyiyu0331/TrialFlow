@@ -6,7 +6,10 @@ export default function NotFound() {
       <div className="notice">
         <h3>Not found</h3>
         <p>
-          That trial site does not exist. <Link href="/" style={{ color: "var(--purple)", fontWeight: 600 }}>Back to the dashboard</Link>
+          That trial site does not exist.{" "}
+          <Link href="/" style={{ color: "var(--purple)", fontWeight: 600 }}>
+            Back to the dashboard
+          </Link>
         </p>
       </div>
     </section>

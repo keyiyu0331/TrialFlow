@@ -30,8 +30,12 @@ def list_trials(
     if q:
         like = f"%{q.strip().lower()}%"
         stmt = stmt.where(
-            or_(*(func.lower(func.coalesce(col, "")).like(like)
-                  for col in (m.Trial.title, m.Trial.acronym, m.Trial.nct_id, m.Trial.sponsor_name)))
+            or_(
+                *(
+                    func.lower(func.coalesce(col, "")).like(like)
+                    for col in (m.Trial.title, m.Trial.acronym, m.Trial.nct_id, m.Trial.sponsor_name)
+                )
+            )
         )
     if overall_status:
         stmt = stmt.where(m.Trial.overall_status == overall_status)
@@ -55,14 +59,24 @@ def _sort_key(sort: str):
 
     def worst_first(row: TrialSiteSummary):
         blocker_days = row.top_blocker.days_overdue if row.top_blocker else 0
-        return (row.milestones_total == 0, row.health == SiteHealth.activated,
-                -views.DELAY_RANK[row.delay_level], -blocker_days, row.readiness_pct, row.id)
+        return (
+            row.milestones_total == 0,
+            row.health == SiteHealth.activated,
+            -views.DELAY_RANK[row.delay_level],
+            -blocker_days,
+            row.readiness_pct,
+            row.id,
+        )
 
     return {
         "-delay": worst_first,
         "readiness": lambda r: (r.milestones_total == 0, r.readiness_pct, r.id),
         "-readiness": lambda r: (r.milestones_total == 0, -r.readiness_pct, r.id),
-        "target_activation_date": lambda r: (r.target_activation_date is None, r.target_activation_date or date.max, r.id),
+        "target_activation_date": lambda r: (
+            r.target_activation_date is None,
+            r.target_activation_date or date.max,
+            r.id,
+        ),
     }[sort]
 
 
@@ -86,8 +100,7 @@ def list_trial_sites(
     if session.get(m.Trial, trial_id) is None:
         raise not_found("Trial", trial_id)
     stmt = (
-        select(m.TrialSite).join(m.Site).where(m.TrialSite.trial_id == trial_id)
-        .options(joinedload(m.TrialSite.site))
+        select(m.TrialSite).join(m.Site).where(m.TrialSite.trial_id == trial_id).options(joinedload(m.TrialSite.site))
     )
     if activation_status:
         stmt = stmt.where(m.TrialSite.activation_status.in_(activation_status))
@@ -99,4 +112,4 @@ def list_trial_sites(
     if delay_level:
         rows = [r for r in rows if r.delay_level in delay_level]
     rows.sort(key=_sort_key(sort))
-    return Page(items=rows[offset: offset + limit], total=len(rows), limit=limit, offset=offset)
+    return Page(items=rows[offset : offset + limit], total=len(rows), limit=limit, offset=offset)

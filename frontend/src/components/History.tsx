@@ -1,5 +1,5 @@
 import type { ApiEvent, MilestoneStatus } from "@/lib/api";
-import { STATUS_LABEL, fmtAgo, fmtDate } from "@/lib/format";
+import { fmtAgo, fmtDate, STATUS_LABEL } from "@/lib/format";
 
 function describe(e: ApiEvent) {
   switch (e.event_type) {
@@ -13,7 +13,8 @@ function describe(e: ApiEvent) {
     case "due_date_change":
       return (
         <>
-          Due date <span className="arrow">{fmtDate(e.old_value, true)}</span>→<span className="arrow">{fmtDate(e.new_value, true)}</span>
+          Due date <span className="arrow">{fmtDate(e.old_value, true)}</span>→
+          <span className="arrow">{fmtDate(e.new_value, true)}</span>
         </>
       );
     case "owner_change":

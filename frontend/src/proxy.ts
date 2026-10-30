@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { COOKIE, decodeSession, isSponsor } from "@/lib/session-token";
 
 /** Site staff may only use their tasks and their own site's pages. */
@@ -13,7 +13,8 @@ export function proxy(req: NextRequest) {
     return user ? NextResponse.redirect(new URL(home, req.url)) : NextResponse.next();
   }
   if (!user) {
-    if (pathname.startsWith("/api/")) return NextResponse.json({ text: "Please sign in first.", links: [] }, { status: 401 });
+    if (pathname.startsWith("/api/"))
+      return NextResponse.json({ text: "Please sign in first.", links: [] }, { status: 401 });
     const url = new URL("/login", req.url);
     if (pathname !== "/") url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);

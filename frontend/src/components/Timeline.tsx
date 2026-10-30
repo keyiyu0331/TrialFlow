@@ -13,7 +13,9 @@ export default function Timeline({ milestones }: { milestones: Milestone[] }) {
 
   const today = dayNumber(todayIso());
   const starts = rows.map((m) => dayNumber(m.planned_start_date!));
-  const ends = rows.map((m) => Math.max(dayNumber(m.due_date!), m.projected_finish ? dayNumber(m.projected_finish) : 0));
+  const ends = rows.map((m) =>
+    Math.max(dayNumber(m.due_date!), m.projected_finish ? dayNumber(m.projected_finish) : 0),
+  );
   const min = Math.min(...starts, today) - 3;
   const max = Math.max(...ends, today) + 5;
   const span = max - min;
@@ -26,7 +28,10 @@ export default function Timeline({ milestones }: { milestones: Milestone[] }) {
   const first = new Date(min * 86_400_000);
   const cursor = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1));
   while (cursor.getTime() / 86_400_000 < max) {
-    ticks.push({ d: Math.round(cursor.getTime() / 86_400_000), label: cursor.toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }) });
+    ticks.push({
+      d: Math.round(cursor.getTime() / 86_400_000),
+      label: cursor.toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }),
+    });
     cursor.setUTCMonth(cursor.getUTCMonth() + 1);
   }
 
@@ -56,7 +61,10 @@ export default function Timeline({ milestones }: { milestones: Milestone[] }) {
           const s = dayNumber(m.planned_start_date!);
           const due = dayNumber(m.due_date!);
           const proj = m.projected_finish ? dayNumber(m.projected_finish) : due;
-          const late = m.is_blocking || m.status === "blocked" || (m.is_overdue && m.status !== "complete" && m.status !== "not_applicable");
+          const late =
+            m.is_blocking ||
+            m.status === "blocked" ||
+            (m.is_overdue && m.status !== "complete" && m.status !== "not_applicable");
           const showSlip = m.slip_days > 0 && m.status !== "complete" && m.status !== "not_applicable" && proj > due;
           return (
             <g key={m.id}>
@@ -66,7 +74,14 @@ export default function Timeline({ milestones }: { milestones: Milestone[] }) {
               <text className="row-sub" x={0} y={y + 26}>
                 {fmtDate(m.planned_start_date)} → {fmtDate(m.due_date)}
               </text>
-              <rect className={`bar bar--${late ? "blocked" : m.status}`} x={x(s)} y={y + 4} width={Math.max(4, x(due) - x(s))} height={18} rx={2}>
+              <rect
+                className={`bar bar--${late ? "blocked" : m.status}`}
+                x={x(s)}
+                y={y + 4}
+                width={Math.max(4, x(due) - x(s))}
+                height={18}
+                rx={2}
+              >
                 <title>{`${m.name}: ${fmtDate(m.planned_start_date)} to ${fmtDate(m.due_date)}`}</title>
               </rect>
               {showSlip && (

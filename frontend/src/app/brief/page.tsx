@@ -1,6 +1,6 @@
 import Link from "next/link";
 import CopyButton from "@/components/CopyButton";
-import { ApiUnreachable, getEvents, getTrackedWorld, type ApiEvent } from "@/lib/api";
+import { type ApiEvent, ApiUnreachable, getEvents, getTrackedWorld } from "@/lib/api";
 import { buildBrief } from "@/lib/brief";
 import { fmtAgo, parseDay, plural, roleLabel } from "@/lib/format";
 
@@ -22,9 +22,16 @@ export default async function BriefPage() {
   }
   const details = world.flatMap((w) => w.details);
   const live = details.filter((d) => d.activation_status === "in_startup");
-  const events = new Map<number, ApiEvent[]>(await Promise.all(live.map(async (d) => [d.id, (await getEvents(d.id)).items] as const)));
+  const events = new Map<number, ApiEvent[]>(
+    await Promise.all(live.map(async (d) => [d.id, (await getEvents(d.id)).items] as const)),
+  );
   const b = buildBrief(details, events);
-  const date = parseDay(b.today).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+  const date = parseDay(b.today).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
   const headline =
     b.actions.length === 0
       ? "Nothing is blocked. Enjoy the quiet."
@@ -36,7 +43,8 @@ export default async function BriefPage() {
         <div className="label">Daily brief · {date}</div>
         <h1 className="brief-head__title">{headline}</h1>
         <p className="brief-head__sub">
-          {b.counts.inStartup} sites in start-up · {b.counts.blocked} blocked · {b.counts.atRisk} at risk · {b.counts.activated} activated. Rule-based, from live status. Nothing here changes any data.
+          {b.counts.inStartup} sites in start-up · {b.counts.blocked} blocked · {b.counts.atRisk} at risk ·{" "}
+          {b.counts.activated} activated. Rule-based, from live status. Nothing here changes any data.
         </p>
       </section>
 
@@ -132,7 +140,10 @@ export default async function BriefPage() {
             {b.changes.slice(0, 12).map((c, i) => (
               <li key={i}>
                 <span>
-                  {c.text} · <Link href={`/sites/${c.siteId}`} className="link">{c.siteName}</Link>
+                  {c.text} ·{" "}
+                  <Link href={`/sites/${c.siteId}`} className="link">
+                    {c.siteName}
+                  </Link>
                 </span>
                 <span className="cell-sub">{fmtAgo(c.at, b.today)}</span>
               </li>

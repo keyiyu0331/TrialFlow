@@ -8,8 +8,6 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select
-
 from app import models as m
 from app.enums import ActivationStatus, SourceType
 from app.services.registry_import import (
@@ -18,6 +16,7 @@ from app.services.registry_import import (
     parse_registry_date,
     site_dedup_key,
 )
+from sqlalchemy import func, select
 
 RAW = Path(__file__).resolve().parents[2] / "data" / "raw_25_studies.json"
 
@@ -50,8 +49,20 @@ def test_importing_twice_adds_nothing(session, studies, imported):
 
 def test_everything_imported_is_labeled_registry_and_not_activated(session, imported):
     for model in (m.Trial, m.Site, m.TrialSite):
-        assert session.scalar(select(func.count()).select_from(model).where(model.source_type != SourceType.public_registry)) == 0
-    assert session.scalar(select(func.count()).select_from(m.TrialSite).where(m.TrialSite.activation_status != ActivationStatus.selected)) == 0
+        assert (
+            session.scalar(
+                select(func.count()).select_from(model).where(model.source_type != SourceType.public_registry)
+            )
+            == 0
+        )
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(m.TrialSite)
+            .where(m.TrialSite.activation_status != ActivationStatus.selected)
+        )
+        == 0
+    )
 
 
 def test_placeholder_sites_are_never_merged(session, imported):
@@ -61,9 +72,7 @@ def test_placeholder_sites_are_never_merged(session, imported):
 
 
 def test_real_site_shared_across_trials_is_one_site(session, imported):
-    shared = session.execute(
-        select(m.TrialSite.site_id).group_by(m.TrialSite.site_id).having(func.count() > 1)
-    ).all()
+    shared = session.execute(select(m.TrialSite.site_id).group_by(m.TrialSite.site_id).having(func.count() > 1)).all()
     assert len(shared) == 53
 
 
@@ -83,14 +92,23 @@ def test_no_contact_people_are_stored(session, imported):
 
 @pytest.mark.parametrize(
     "value, expected",
-    [("2027-08", date(2027, 8, 1)), ("2024-05-09", date(2024, 5, 9)), ("2026", date(2026, 1, 1)), (None, None), ("", None), ("garbage", None)],
+    [
+        ("2027-08", date(2027, 8, 1)),
+        ("2024-05-09", date(2024, 5, 9)),
+        ("2026", date(2026, 1, 1)),
+        (None, None),
+        ("", None),
+        ("garbage", None),
+    ],
 )
 def test_parse_registry_date(value, expected):
     assert parse_registry_date(value) == expected
 
 
 def test_dedup_key_rules():
-    key, placeholder = site_dedup_key("NCT1", 7, {"facility": "  Smilow  Derby ", "city": "Derby", "state": "Connecticut", "country": "United States"})
+    key, placeholder = site_dedup_key(
+        "NCT1", 7, {"facility": "  Smilow  Derby ", "city": "Derby", "state": "Connecticut", "country": "United States"}
+    )
     assert key == "smilow derby|derby|connecticut|united states" and not placeholder
     assert site_dedup_key("NCT1", 7, {"facility": "Research Site", "city": "Chicago"}) == ("NCT1:7", True)
     assert is_placeholder_facility("research  facility") and is_placeholder_facility(None)

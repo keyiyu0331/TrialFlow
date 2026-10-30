@@ -74,7 +74,12 @@ export default function DependencyGraph({ graph }: { graph: TrialSiteGraph }) {
         })}
         {graph.nodes.map((n) => {
           const p = pos.get(n.milestone_id)!;
-          const sub = [n.due_date ? `Due ${fmtDate(n.due_date)}` : "No due date", n.owner ? roleLabel(n.owner.role) : null].filter(Boolean).join(" · ");
+          const sub = [
+            n.due_date ? `Due ${fmtDate(n.due_date)}` : "No due date",
+            n.owner ? roleLabel(n.owner.role) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
           return (
             <g key={n.milestone_id} className={nodeClass(n)} transform={`translate(${p.x},${p.y})`}>
               <title>{`${n.name} (${n.status.replace("_", " ")})`}</title>

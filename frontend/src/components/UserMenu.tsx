@@ -3,7 +3,12 @@ import { roleLabel } from "@/lib/format";
 import type { SessionUser } from "@/lib/session-token";
 
 export default function UserMenu({ user }: { user: SessionUser }) {
-  const initials = user.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  const initials = user.name
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   return (
     <details className="usermenu">
       <summary className="avatar" aria-label={`Signed in as ${user.name}`}>

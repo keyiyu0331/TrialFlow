@@ -2,17 +2,17 @@ import Link from "next/link";
 import SiteList from "@/components/SiteList";
 import {
   ApiUnreachable,
+  type DelayLevel,
   getDashboard,
   getSiteDetails,
   getTrial,
   getTrials,
-  trackedTrials,
-  type DelayLevel,
   type SiteHealth,
   type TrialSiteSummary,
+  trackedTrials,
 } from "@/lib/api";
 import { DELAY_LABEL, HEALTH_LABEL, location, plural } from "@/lib/format";
-import { URGENT, openTasks } from "@/lib/insights";
+import { openTasks, URGENT } from "@/lib/insights";
 import { getSession } from "@/lib/session";
 
 type Search = { trial?: string; health?: string; delay?: string; sort?: string; status?: string; q?: string };
@@ -86,7 +86,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const live = all.filter((r) => r.activation_status === "in_startup");
   const details = await getSiteDetails(live.map((r) => r.id));
   const urgent = openTasks(details).filter((t) => URGENT.includes(t.kind));
-  const counts = Object.fromEntries(HEALTHS.map((h) => [h, all.filter((s) => s.health === h).length])) as Record<SiteHealth, number>;
+  const counts = Object.fromEntries(HEALTHS.map((h) => [h, all.filter((s) => s.health === h).length])) as Record<
+    SiteHealth,
+    number
+  >;
   const needle = q.toLowerCase();
   const visible: TrialSiteSummary[] = all.filter(
     (s) =>
@@ -97,7 +100,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   );
   const base = { trial: String(chosen.id), sort: sort === "-delay" ? undefined : sort };
   const active = [
-    status && { label: STATUSES.find((x) => x.key === status)!.label, off: href({ ...base, health, delay, q: q || undefined }) },
+    status && {
+      label: STATUSES.find((x) => x.key === status)!.label,
+      off: href({ ...base, health, delay, q: q || undefined }),
+    },
     delay && { label: DELAY_LABEL[delay], off: href({ ...base, health, status, q: q || undefined }) },
     q && { label: `“${q}”`, off: href({ ...base, health, delay, status }) },
   ].filter(Boolean) as { label: string; off: string }[];
@@ -149,7 +155,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           All <span>{all.length}</span>
         </Link>
         {HEALTHS.map((h) => (
-          <Link key={h} href={href({ ...base, health: h, delay, status, q: q || undefined })} className={health === h ? "on" : ""}>
+          <Link
+            key={h}
+            href={href({ ...base, health: h, delay, status, q: q || undefined })}
+            className={health === h ? "on" : ""}
+          >
             <i className="dot" data-h={h} /> {HEALTH_LABEL[h]} <span>{counts[h]}</span>
           </Link>
         ))}
@@ -166,23 +176,44 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         </form>
         <details className="menu">
           <summary className="btn">
-            Filters{active.length > 0 && <span className="badge">{active.filter((a) => !a.label.startsWith("“")).length || ""}</span>}
+            Filters
+            {active.length > 0 && (
+              <span className="badge">{active.filter((a) => !a.label.startsWith("“")).length || ""}</span>
+            )}
           </summary>
           <div className="menu__pop">
             <div className="menu__group">
               <span className="label">Status</span>
-              <Link href={href({ ...base, health, delay, q: q || undefined })} className={`pill ${!status ? "pill--active" : ""}`}>Any</Link>
+              <Link
+                href={href({ ...base, health, delay, q: q || undefined })}
+                className={`pill ${!status ? "pill--active" : ""}`}
+              >
+                Any
+              </Link>
               {STATUSES.map((x) => (
-                <Link key={x.key} href={href({ ...base, health, delay, status: x.key, q: q || undefined })} className={`pill ${status === x.key ? "pill--active" : ""}`}>
+                <Link
+                  key={x.key}
+                  href={href({ ...base, health, delay, status: x.key, q: q || undefined })}
+                  className={`pill ${status === x.key ? "pill--active" : ""}`}
+                >
                   {x.label}
                 </Link>
               ))}
             </div>
             <div className="menu__group">
               <span className="label">Delay</span>
-              <Link href={href({ ...base, health, status, q: q || undefined })} className={`pill ${!delay ? "pill--active" : ""}`}>Any</Link>
+              <Link
+                href={href({ ...base, health, status, q: q || undefined })}
+                className={`pill ${!delay ? "pill--active" : ""}`}
+              >
+                Any
+              </Link>
               {DELAYS.map((d) => (
-                <Link key={d} href={href({ ...base, health, delay: d, status, q: q || undefined })} className={`pill ${delay === d ? "pill--active" : ""}`}>
+                <Link
+                  key={d}
+                  href={href({ ...base, health, delay: d, status, q: q || undefined })}
+                  className={`pill ${delay === d ? "pill--active" : ""}`}
+                >
                   {DELAY_LABEL[d]}
                 </Link>
               ))}
@@ -192,7 +223,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               {SORTS.map((s) => (
                 <Link
                   key={s.key}
-                  href={href({ trial: String(chosen.id), sort: s.key === "-delay" ? undefined : s.key, health, delay, status, q: q || undefined })}
+                  href={href({
+                    trial: String(chosen.id),
+                    sort: s.key === "-delay" ? undefined : s.key,
+                    health,
+                    delay,
+                    status,
+                    q: q || undefined,
+                  })}
                   className={`pill ${sort === s.key ? "pill--active" : ""}`}
                 >
                   {s.label}
@@ -210,7 +248,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               {a.label} <span aria-hidden="true">×</span>
             </Link>
           ))}
-          <Link href={href({ trial: String(chosen.id), health })} className="fchip fchip--clear">Clear all</Link>
+          <Link href={href({ trial: String(chosen.id), health })} className="fchip fchip--clear">
+            Clear all
+          </Link>
         </div>
       )}
 
@@ -223,7 +263,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <SiteList sites={visible} />
       )}
       <p className="data-note" style={{ margin: "14px 2px 56px" }}>
-        {plural(visible.length, "site")} shown. Sites are real ClinicalTrials.gov records; milestones, owners and dates are synthetic demo data.
+        {plural(visible.length, "site")} shown. Sites are real ClinicalTrials.gov records; milestones, owners and dates
+        are synthetic demo data.
       </p>
     </>
   );

@@ -1,17 +1,15 @@
 """The synthetic seed: every scenario must produce the dashboard state it documents."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import func, select
-
 from app import models as m
 from app.enums import ActivationStatus, MilestoneStatus, SourceType
 from app.services import views
 from app.services.seeding import SCENARIOS, SEED_TRIALS, TRIAL_PLANS, clear_seed, is_seeded, seed
 from app.services.templates import DEFAULT_TEMPLATES, ensure_templates, instantiate_trial_site
-
 from conftest import AS_OF
+from sqlalchemy import func, select
 
 
 def seeded_trial_sites(session):
@@ -41,16 +39,22 @@ def test_seeded_sites_are_real_named_sites(seeded):
 
 def test_everything_synthetic_is_labeled_synthetic(seeded):
     for model in (m.Milestone, m.MilestoneDependency, m.MilestoneEvent, m.User):
-        assert seeded.scalar(select(func.count()).select_from(model).where(model.source_type != SourceType.synthetic)) == 0
+        assert (
+            seeded.scalar(select(func.count()).select_from(model).where(model.source_type != SourceType.synthetic)) == 0
+        )
     assert all(ts.source_type == SourceType.synthetic for ts in seeded_trial_sites(seeded))
     assert all(u.email.endswith("@example.org") for u in seeded.scalars(select(m.User)))
 
 
 def test_unseeded_trial_sites_are_untouched(seeded):
     untouched = seeded.scalar(
-        select(func.count()).select_from(m.TrialSite)
-        .where(m.TrialSite.scenario_label.is_(None), m.TrialSite.activation_status == ActivationStatus.selected,
-               m.TrialSite.source_type == SourceType.public_registry)
+        select(func.count())
+        .select_from(m.TrialSite)
+        .where(
+            m.TrialSite.scenario_label.is_(None),
+            m.TrialSite.activation_status == ActivationStatus.selected,
+            m.TrialSite.source_type == SourceType.public_registry,
+        )
     )
     assert untouched == 1715 - 18
     assert seeded.scalar(select(func.count(m.Site.id))) == 1662
@@ -66,7 +70,7 @@ def test_activated_sites_have_a_real_activation_date_in_the_past(seeded):
 
 
 def test_history_never_reaches_past_today(seeded):
-    cutoff = datetime(AS_OF.year, AS_OF.month, AS_OF.day, tzinfo=timezone.utc)
+    cutoff = datetime(AS_OF.year, AS_OF.month, AS_OF.day, tzinfo=UTC)
     for ev in seeded.scalars(select(m.MilestoneEvent)):
         assert views.as_utc(ev.occurred_at) < cutoff or ev.occurred_at.date() <= AS_OF
 
@@ -85,7 +89,12 @@ def test_seeding_twice_is_refused_and_reset_restores_the_import(seeded):
     assert not is_seeded(seeded)
     assert seeded.scalar(select(func.count(m.Milestone.id))) == 0
     assert seeded.scalar(select(func.count(m.User.id))) == 0
-    assert seeded.scalar(select(func.count()).select_from(m.TrialSite).where(m.TrialSite.source_type == SourceType.synthetic)) == 0
+    assert (
+        seeded.scalar(
+            select(func.count()).select_from(m.TrialSite).where(m.TrialSite.source_type == SourceType.synthetic)
+        )
+        == 0
+    )
     seed(seeded, AS_OF)  # and it can be seeded again
     assert is_seeded(seeded)
 
@@ -93,6 +102,7 @@ def test_seeding_twice_is_refused_and_reset_restores_the_import(seeded):
 def test_instantiation_builds_ten_milestones_and_eleven_dependencies(session, world):
     ts = world["trial_sites"][1]
     from datetime import date
+
     milestones = instantiate_trial_site(session, ts, date(2026, 10, 1))
     assert len(milestones) == len(DEFAULT_TEMPLATES) == 10
     deps = session.scalars(select(m.MilestoneDependency).where(m.MilestoneDependency.trial_site_id == ts.id)).all()
@@ -106,6 +116,7 @@ def test_instantiation_builds_ten_milestones_and_eleven_dependencies(session, wo
 
 def test_instantiating_twice_is_refused_and_templates_are_idempotent(session, world):
     from datetime import date
+
     ts = world["trial_sites"][1]
     instantiate_trial_site(session, ts, date(2026, 10, 1))
     with pytest.raises(ValueError, match="already has milestones"):

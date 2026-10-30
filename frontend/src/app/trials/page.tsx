@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ApiUnreachable, getTrials } from "@/lib/api";
 import { SourceTag } from "@/components/Chips";
+import { ApiUnreachable, getTrials } from "@/lib/api";
 
 export const metadata = { title: "Trials · TrialFlow" };
 
@@ -18,7 +18,8 @@ export default async function Trials() {
     }
     throw e;
   }
-  const tracked = (t: (typeof items)[number]) => t.activation_counts.in_startup + t.activation_counts.activated + t.activation_counts.on_hold;
+  const tracked = (t: (typeof items)[number]) =>
+    t.activation_counts.in_startup + t.activation_counts.activated + t.activation_counts.on_hold;
   const sorted = [...items].sort((a, b) => tracked(b) - tracked(a) || b.site_count - a.site_count);
 
   return (
@@ -28,8 +29,8 @@ export default async function Trials() {
           <div className="label">Registry</div>
           <h1 className="section__title">Trials</h1>
           <p className="section__sub">
-            {items.length} recruiting trials pulled from ClinicalTrials.gov. TrialFlow tracks activation for the ones with synthetic
-            start-up data.
+            {items.length} recruiting trials pulled from ClinicalTrials.gov. TrialFlow tracks activation for the ones
+            with synthetic start-up data.
           </p>
         </div>
       </div>
@@ -46,7 +47,11 @@ export default async function Trials() {
               </div>
               <div className="chips" style={{ marginTop: 12 }}>
                 <SourceTag source={t.source_type} what="Trial" />
-                {n > 0 ? <span className="tag tag--real">Tracking {n} trial sites</span> : <span className="tag">Not tracked</span>}
+                {n > 0 ? (
+                  <span className="tag tag--real">Tracking {n} trial sites</span>
+                ) : (
+                  <span className="tag">Not tracked</span>
+                )}
               </div>
             </>
           );

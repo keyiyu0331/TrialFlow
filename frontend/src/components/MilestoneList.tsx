@@ -70,7 +70,7 @@ export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
       </div>
       {error && <div className="editor__error">{error}</div>}
       <div className="editor__hint">
-        {me ? `Recorded as ${me.name}. ` : ""}Readiness, blockers and projected dates recompute on save.
+        {me ? `Recorded as ${me.name}. ` : ""}Progress, blockers and go-live dates update when you save.
       </div>
     </div>
   );
@@ -82,7 +82,10 @@ export default function MilestoneList({ milestones }: { milestones: Milestone[] 
   return (
     <div>
       {milestones.map((m) => (
-        <div className="mrow" key={m.id}>
+        <div
+          className={`mrow ${m.status === "complete" || m.status === "not_applicable" ? "mrow--done" : ""}`}
+          key={m.id}
+        >
           <div>
             <div className="mrow__name">{m.name}</div>
             {m.status === "blocked" && m.blocked_reason && <div className="mrow__reason">{m.blocked_reason}</div>}

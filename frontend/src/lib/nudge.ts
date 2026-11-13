@@ -14,6 +14,6 @@ export function nudgeText(siteName: string, m: Milestone | Blocker, downstream =
       : m.due_date
         ? ` It is due ${fmtDate(m.due_date, true)}.`
         : "";
-  const hold = downstream > 0 ? ` It is holding up ${plural(downstream, "later step")} for the site.` : "";
+  const hold = downstream > 0 ? ` ${plural(downstream, "more step")} at the site are waiting on it.` : "";
   return `Hi ${owner}, quick check on "${name}" for ${siteName}.${late}${reason}${hold} Could you share the current status and a date you expect it to be done? Thanks.`;
 }

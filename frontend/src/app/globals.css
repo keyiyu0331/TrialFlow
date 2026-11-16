@@ -502,3 +502,20 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 2px 6px; border: 
   .kbtn span, .topbar__right .tag { display: none; }
 }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ===== Polish pass: site page, trials, tasks ===== */
+.detail-head h1 { font-size: clamp(1.7rem, 3vw, 2.3rem); font-weight: 700; letter-spacing: -0.035em; line-height: 1.12; }
+.detail-head { padding: 16px 0 22px; }
+.kpi__value { font-size: 22px; }
+.kpi .label, .kpi2 .label { text-transform: none; letter-spacing: 0; font-size: 12.5px; font-weight: 600; color: var(--ink-3); }
+.mrow--done { opacity: 0.55; }
+.mrow--done:hover { opacity: 0.9; }
+.sl .mrow { padding: 14px 20px; }
+.sl .mrow:first-of-type { border-top: 0; }
+.sl__row--2 { grid-template-columns: 1fr auto; cursor: default; }
+.sl__row--2:hover { background: transparent; }
+.trial-card { padding: 18px 20px; }
+.trial-card:hover { transform: none; border-color: var(--purple-2); box-shadow: none; }
+.menu--plain summary { list-style: none; cursor: pointer; display: inline-flex; margin-bottom: 4px; }
+.menu--plain summary::-webkit-details-marker { display: none; }
+.toolbar .select, .toolbar select { max-width: 340px; }

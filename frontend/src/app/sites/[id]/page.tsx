@@ -34,6 +34,8 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
   if (user && !isSponsor(user.role) && site.site.id !== user.siteId) redirect("/tasks");
   const b = site.top_blocker;
   const owner = site.next_action_owner;
+  const isDone = (s: string) => s === "complete" || s === "not_applicable";
+  const ordered = [...site.milestones].sort((a, b) => Number(isDone(a.status)) - Number(isDone(b.status)));
 
   return (
     <>
@@ -63,32 +65,34 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
 
       <div className="kpis">
         <div className="card kpi">
-          <div className="label">Readiness</div>
+          <div className="label">Progress</div>
           <div className="kpi__value">{Math.round(site.readiness_pct)}%</div>
           <div className="kpi__sub">
-            {site.milestones_satisfied} of {site.milestones_total} milestones satisfied
+            {site.milestones_satisfied} of {site.milestones_total} steps done
           </div>
         </div>
         <div className={`card kpi ${b ? "kpi--alert" : ""}`}>
-          <div className="label">Top blocker</div>
+          <div className="label">What is holding it up</div>
           <div className="kpi__value">{b ? b.milestone_name : "None"}</div>
           <div className="kpi__sub">
             {b
-              ? `${b.days_overdue > 0 ? `${plural(b.days_overdue, "day")} late` : "Blocked"} · holds up ${b.downstream_unsatisfied} later ${b.downstream_unsatisfied === 1 ? "milestone" : "milestones"}${b.blocked_reason ? ` · ${b.blocked_reason}` : ""}`
+              ? `${b.days_overdue > 0 ? `${plural(b.days_overdue, "day")} late` : "Blocked"} · ${b.downstream_unsatisfied} more ${b.downstream_unsatisfied === 1 ? "step" : "steps"} waiting on it${b.blocked_reason ? ` · ${b.blocked_reason}` : ""}`
               : site.health === "activated"
                 ? "Activated"
-                : "Nothing is overdue or flagged"}
+                : "Nothing is late or flagged"}
           </div>
         </div>
         <div className="card kpi">
-          <div className="label">Next action</div>
+          <div className="label">Who is up next</div>
           <div className="kpi__value">{owner ? owner.name : "—"}</div>
           <div className="kpi__sub">
-            {owner ? `${roleLabel(owner.role)}${owner.team_name ? ` · ${owner.team_name}` : ""}` : "No open action"}
+            {owner
+              ? `${roleLabel(owner.role)}${owner.team_name ? ` · ${owner.team_name}` : ""}`
+              : "Nothing to do right now"}
           </div>
         </div>
         <div className="card kpi">
-          <div className="label">{site.health === "activated" ? "Activated" : "Projected activation"}</div>
+          <div className="label">{site.health === "activated" ? "Activated" : "Expected go-live"}</div>
           <div className="kpi__value mono" style={{ fontSize: 22 }}>
             {fmtDate(site.health === "activated" ? site.actual_activation_date : site.projected_activation_date, true)}
           </div>
@@ -108,13 +112,13 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
         <div className="panel__head">
           <div>
             <div className="label">Milestones</div>
-            <h2 className="panel__title">Update status</h2>
+            <h2 className="panel__title">What needs doing</h2>
           </div>
         </div>
-        <MilestoneList milestones={site.milestones} />
+        <MilestoneList milestones={ordered} />
       </section>
 
-      <details className="card panel" open>
+      <details className="card panel">
         <summary>
           <div className="panel__head">
             <div>
@@ -145,7 +149,7 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
           <div className="panel__head">
             <div>
               <div className="label">Schedule</div>
-              <h2 className="panel__title">Plan vs. projected finish</h2>
+              <h2 className="panel__title">Planned vs. expected finish</h2>
             </div>
           </div>
         </summary>

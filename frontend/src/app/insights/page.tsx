@@ -57,7 +57,7 @@ export default async function Insights() {
           <b className="late">{overall.blocked}</b>
         </div>
         <div className="kpi2">
-          <span className="label">Average readiness</span>
+          <span className="label">Average progress</span>
           <b>{Math.round(overall.avgReadiness ?? 0)}%</b>
         </div>
         <div className="kpi2">

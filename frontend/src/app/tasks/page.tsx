@@ -9,8 +9,9 @@ import { isSponsor } from "@/lib/session-token";
 
 export const metadata = { title: "My tasks · TrialFlow" };
 
-type Search = { role?: string; person?: string; kind?: string };
-const LIMIT = 60;
+type Search = { role?: string; person?: string; kind?: string; all?: string };
+const LIMIT = 15;
+const MAX = 100;
 
 function href(p: Record<string, string | undefined>) {
   const q = new URLSearchParams();
@@ -61,6 +62,9 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<Se
     (t) => (!role || t.milestone.owner?.role === role) && (!person || t.milestone.owner?.id === person.id),
   );
   const shown = scoped.filter((t) => !kind || t.kind === kind);
+  const showAll = sp.all === "1";
+  const rows = shown.slice(0, showAll ? MAX : LIMIT);
+  const pid = person && String(person.id);
   const counts = (Object.keys(TASK_LABEL) as TaskKind[]).map(
     (k) => [k, scoped.filter((t) => t.kind === k).length] as const,
   );
@@ -74,97 +78,94 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<Se
     })),
   ];
 
+  const mineLabel = sponsor ? "Everyone's open work" : "Your site";
   return (
-    <section className="section" style={{ paddingTop: 48 }}>
-      <div className="section__head">
+    <>
+      <header className="dh">
         <div>
-          <div className="label">{sponsor ? "Everyone's open work" : "Your site"}</div>
-          <h1 className="section__title">
-            {sponsor ? "My tasks" : `Hi ${user?.name.split(" ")[0]}, here is your list`}
-          </h1>
-          <p className="section__sub">
+          <div className="dh__eyebrow">{mineLabel}</div>
+          <h1 className="dh__title">{sponsor ? "My tasks" : `Hi ${user?.name.split(" ")[0]}, here is your list`}</h1>
+          <p className="dh__sub">
             {sponsor
-              ? "Open milestones assigned to each person, most urgent first. Pick someone, update a status, and the dashboard recomputes."
-              : "Your open milestones, most urgent first. You can update the ones you own. Switch to see what everyone else at your site is working on."}
+              ? "Open milestones for each person, most urgent first. Pick someone to see their list."
+              : "Your open milestones, most urgent first. You can update the ones you own."}
           </p>
         </div>
-      </div>
+      </header>
 
       {!sponsor && (
-        <div className="filters">
-          <div className="filter-group">
-            <span className="label">Show</span>
-            <Link href={href({ kind: sp.kind })} className={`pill ${!everyone ? "pill--active" : ""}`}>
-              Mine
-            </Link>
-            <Link href={href({ person: "all", kind: sp.kind })} className={`pill ${everyone ? "pill--active" : ""}`}>
-              Everyone at my site
-            </Link>
-          </div>
-        </div>
-      )}
-      {sponsor && (
-        <div className="filters">
-          <div className="filter-group">
-            <span className="label">Role</span>
-            <Link href={href({ kind: sp.kind })} className={`pill ${!role ? "pill--active" : ""}`}>
-              All
-            </Link>
-            {roles.map((r) => (
-              <Link
-                key={r}
-                href={href({ role: r, kind: sp.kind })}
-                className={`pill ${role === r ? "pill--active" : ""}`}
-              >
-                {roleLabel(r)}
-              </Link>
-            ))}
-          </div>
-          <div className="filter-group">
-            <span className="label">Person</span>
-            <PersonSelect options={options} value={person ? String(person.id) : ""} />
-          </div>
-        </div>
-      )}
-      <div className="filters">
-        <div className="filter-group">
-          <span className="label">Show</span>
-          <Link
-            href={href({ role, person: person && String(person.id) })}
-            className={`pill ${!kind ? "pill--active" : ""}`}
-          >
-            All ({scoped.length})
+        <div className="seg">
+          <Link href={href({ kind: sp.kind })} className={!everyone ? "on" : ""}>
+            Mine
           </Link>
-          {counts
-            .filter(([, n]) => n > 0)
-            .map(([k, n]) => (
-              <Link
-                key={k}
-                href={href({ role, person: person && String(person.id), kind: k })}
-                className={`pill ${kind === k ? "pill--active" : ""}`}
-              >
-                {TASK_LABEL[k]} ({n})
-              </Link>
-            ))}
+          <Link href={href({ person: "all", kind: sp.kind })} className={everyone ? "on" : ""}>
+            Everyone at my site
+          </Link>
         </div>
-      </div>
-      <p className="data-note">Owners, tasks and dates are synthetic demo data.</p>
+      )}
 
-      {shown.length === 0 ? (
+      <nav className="views" aria-label="Filter by status">
+        <Link href={href({ role, person: pid })} className={!kind ? "on" : ""}>
+          All <span>{scoped.length}</span>
+        </Link>
+        {counts
+          .filter(([, n]) => n > 0)
+          .map(([k, n]) => (
+            <Link key={k} href={href({ role, person: pid, kind: k })} className={kind === k ? "on" : ""}>
+              {TASK_LABEL[k]} <span>{n}</span>
+            </Link>
+          ))}
+      </nav>
+
+      {sponsor && (
+        <div className="toolbar">
+          <PersonSelect options={options} value={person ? String(person.id) : ""} />
+          <details className="menu">
+            <summary className="btn">Filters{role ? <span className="badge">1</span> : null}</summary>
+            <div className="menu__pop">
+              <div className="menu__group">
+                <span className="label">Role</span>
+                <Link href={href({ kind: sp.kind })} className={`pill ${!role ? "pill--active" : ""}`}>
+                  All
+                </Link>
+                {roles.map((r) => (
+                  <Link
+                    key={r}
+                    href={href({ role: r, kind: sp.kind })}
+                    className={`pill ${role === r ? "pill--active" : ""}`}
+                  >
+                    {roleLabel(r)}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </details>
+        </div>
+      )}
+
+      {rows.length === 0 ? (
         <div className="card empty">
           <h3>No open tasks</h3>
           <p>Nothing matches these filters.</p>
         </div>
       ) : (
-        <div className="card panel">
-          <TaskList tasks={shown.slice(0, LIMIT)} showOwner={!person} />
-          {shown.length > LIMIT && (
-            <p className="data-note" style={{ marginTop: 14 }}>
-              Showing the {LIMIT} most urgent of {shown.length}. Narrow by role or person.
-            </p>
-          )}
+        <div className="sl">
+          <TaskList tasks={rows} showOwner={!person} />
         </div>
       )}
-    </section>
+      {shown.length > LIMIT && (
+        <p className="data-note" style={{ marginTop: 14 }}>
+          {showAll
+            ? `Showing ${rows.length} of ${shown.length}.`
+            : `Showing the ${LIMIT} most urgent of ${shown.length}. `}
+          {!showAll && (
+            <Link className="link" href={href({ role, person: pid, kind: sp.kind, all: "1" })}>
+              Show more
+            </Link>
+          )}
+        </p>
+      )}
+      <p className="data-note">Owners, tasks and dates are demo data.</p>
+    </>
   );
 }

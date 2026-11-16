@@ -69,7 +69,7 @@ export default async function BriefPage() {
                 </div>
                 <div className="cell-sub">
                   {a.daysLate > 0 && <span className="late">{plural(a.daysLate, "day")} late · </span>}
-                  holds up {plural(a.holdsUp, "later step")} · {a.why}
+                  {plural(a.holdsUp, "more step")} waiting on it · {a.why}
                 </div>
                 <div className="cell-sub">
                   Owner: {a.owner ? `${a.owner}${a.ownerRole ? `, ${roleLabel(a.ownerRole)}` : ""}` : "unassigned"}

@@ -37,9 +37,11 @@ class FakeClient:
     def __init__(self, *turns):
         self.turns = list(turns)  # each turn: (stop_reason, [blocks])
         self.calls: list[dict] = []
+        self.options: list[dict] = []  # with_options() kwargs, one per model call
         self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
 
-    def with_options(self, **_):
+    def with_options(self, **kwargs):
+        self.options.append(kwargs)
         return self
 
     def _create(self, **kwargs):
@@ -159,6 +161,16 @@ def test_request_settings(world):
     assert call["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert "tool_choice" not in call  # forced tool use is a 400 on Opus 5.5
     assert all(t["strict"] for t in call["tools"])
+
+
+def test_each_call_fits_the_remaining_deadline_without_sdk_retries(world):
+    """An SDK retry would reuse the full remaining timeout and overrun the question's deadline."""
+    client = FakeClient(("tool_use", [tool_use("portfolio_summary", {})]), ("end_turn", [final("Hi.", [])]))
+    assistant.ask(client, "hello", [], world, AS_OF)
+    assert len(client.options) == 2
+    for opts in client.options:
+        assert opts["max_retries"] == 0
+        assert 0 < opts["timeout"] <= assistant.DEADLINE_S
 
 
 def test_history_is_merged_into_alternating_turns(world):

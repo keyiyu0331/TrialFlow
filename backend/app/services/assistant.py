@@ -89,7 +89,7 @@ def get_client() -> anthropic.Anthropic | None:
     """FastAPI dependency. None when no API key is configured (tests override this)."""
     if not os.getenv("ANTHROPIC_API_KEY"):
         return None
-    return anthropic.Anthropic(max_retries=1)
+    return anthropic.Anthropic(max_retries=0)
 
 
 def _messages(question: str, history: list[s.AskTurn], as_of: date) -> list[dict]:
@@ -133,7 +133,9 @@ def ask(
         if remaining <= 1:
             raise AssistantUnavailable("Timed out")
         try:
-            response = client.with_options(timeout=remaining).beta.messages.create(
+            # No SDK retries: a retry would get the same timeout again and overrun the deadline.
+            # The round loop and the frontend's rule-based fallback cover failures instead.
+            response = client.with_options(timeout=remaining, max_retries=0).beta.messages.create(
                 model=model_name(),
                 max_tokens=MAX_TOKENS,
                 system=[{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],

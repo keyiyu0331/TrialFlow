@@ -51,6 +51,14 @@ The `as_of` floor means an overdue milestone cannot finish before today.
 
 Readiness % and Ready stay as defined in `schema.md`.
 
+**D13. Open tasks** (My tasks page and the assistant's `open_tasks` tool). Only trial sites `in_startup`; only milestones `not_started`, `in_progress`, or `blocked`. `until = due_date - as_of` in days (null without a due date). Kind, first match wins:
+1. `blocked`: status `blocked`, or blocking (D5).
+2. `overdue`: overdue (D3).
+3. `due_soon`: in progress or Ready, and `until <= 7`.
+4. `in_progress`, then `ready`, then `waiting`.
+
+Sorted by kind in that order, then most days overdue, then soonest due. *Urgent* = blocked, overdue, or due soon. Implemented twice and kept in step: `frontend/src/lib/insights.ts` (`openTasks`) and `backend/app/services/tasks.py`; change both together.
+
 ## Required tests
 
 Derive them from the rules above, not from the implementation. Fixtures should use the default template from `schema.md`.
@@ -65,6 +73,7 @@ Derive them from the rules above, not from the implementation. Fixtures should u
 8. Top blocker tie-break follows D7 order, including the `sort_order` fallback.
 9. Activated trial site: health is `activated`, top blocker is null.
 10. Dependency cycle is rejected with 409 `dependency_cycle` (already in `schema.md`).
+11. Open tasks (D13): kind precedence, `due_soon` only for in-progress or Ready milestones, and sort order (`tests/test_tasks.py`).
 
 ## Open questions
 

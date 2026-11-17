@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .routers import catalog, milestones, trial_sites, trials
+from .routers import assistant, catalog, milestones, trial_sites, trials
 from .routers.common import VALIDATION_ERROR
 
 app = FastAPI(
@@ -47,7 +47,7 @@ async def _validation_error_body(request, exc: RequestValidationError):
 
 
 # VALIDATION_ERROR replaces the default HTTPValidationError schema in the OpenAPI spec.
-for r in (trials.router, trial_sites.router, milestones.router, catalog.router):
+for r in (trials.router, trial_sites.router, milestones.router, catalog.router, assistant.router):
     app.include_router(r, responses=VALIDATION_ERROR)
 
 

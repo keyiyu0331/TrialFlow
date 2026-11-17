@@ -16,7 +16,7 @@ flowchart LR
     BE["FastAPI backend<br/>backend/app/<br/>validates, applies rules,<br/>computes readiness and blockers"]
     FE["Next.js frontend<br/>/ dashboard, /tasks, /trials,<br/>/sites/[id] checklist + updates"]
     USER(["Start-up manager / site staff"])
-    LLM["LLM suggestions ⏳"]
+    LLM["Claude API<br/>(Ask TrialFlow chat,<br/>read-only tools)"]
 
     CTG -- "one-time pull (offline)" --> RAW
     RAW --> IMP --> DB
@@ -25,15 +25,14 @@ flowchart LR
     FE -- "HTTP request (JSON)" --> BE
     BE -- "JSON response" --> FE
     BE <-- "SQL via SQLAlchemy" --> DB
-    BE -.-> LLM
-
-    classDef planned stroke-dasharray: 5 5,fill:#f2f2f2,color:#555
-    class LLM planned
+    BE -- "scoped status via tools<br/>(no emails)" --> LLM
+    LLM -- "suggested answer only" --> BE
 ```
 
 - **Frontend:** shows data and sends user changes. Pages fetch on the server (`API_URL`); milestone updates go from the browser (`NEXT_PUBLIC_API_URL`). `src/lib/insights.ts` derives My tasks and trial summaries from existing endpoints; it adds no business rules.
 - **Backend:** validates every request, enforces the rules, and computes readiness, delays, blockers, and next-action owners on each request.
 - **Database:** stores facts only (statuses, dates, owners, history), never computed values.
+- **Assistant:** the Ask TrialFlow chat calls `POST /assistant/ask`; the backend runs Claude with read-only tools over the caller's trial sites and returns a suggested answer, never a status change. Without `ANTHROPIC_API_KEY` (or on any model failure) the frontend falls back to the rule-based `src/lib/ask.ts`.
 - **Scripts:** load the database before the app runs. The app never calls ClinicalTrials.gov while serving a request.
 
 ## 2. Backend file map
@@ -46,6 +45,7 @@ flowchart TD
         TS["trial_sites.py<br/>/trial-sites"]
         MI["milestones.py<br/>/milestones, /dependencies"]
         CA["catalog.py<br/>/templates, /users"]
+        AS["assistant.py<br/>/assistant/ask"]
     end
     COMMON["routers/common.py<br/>not_found, paging, error docs"]
     DEPS["deps.py<br/>get_today (pinned in tests)"]
@@ -55,6 +55,9 @@ flowchart TD
         TPL["templates.py<br/>templates → milestones + deps"]
         IMPS["registry_import.py"]
         SEEDS["seeding.py<br/>scenarios"]
+        TK["tasks.py<br/>pure rules: open tasks"]
+        AT["assistant_tools.py<br/>scope + read-only tools"]
+        ASV["assistant.py<br/>Claude tool loop"]
     end
     SCRIPTS["scripts/import_registry.py<br/>scripts/seed.py"]
     MODELS["models.py<br/>database tables + constraints"]
@@ -79,6 +82,9 @@ flowchart TD
     ENUMS --> MODELS
     ENUMS --> SCHEMAS
     ENUMS --> RD
+    AS --> ASV --> AT
+    AT --> VIEWS
+    AT --> TK
 ```
 
 | File | Main job |
@@ -92,6 +98,9 @@ flowchart TD
 | `services/templates.py` | Copies milestone templates and template dependencies into a new trial site |
 | `services/registry_import.py` | Parses the registry JSON into trials, sites, and trial sites (dedup keys, partial dates) |
 | `services/seeding.py` | Synthetic owners, milestones, and events for the scenario trial sites |
+| `services/tasks.py` | Pure functions: open tasks (blocked, overdue, due soon, ...), the Python port of `openTasks` in `frontend/src/lib/insights.ts` |
+| `services/assistant_tools.py` | `load_world()` applies the caller's scope once; the read-only tools Claude may call are pure functions over that list |
+| `services/assistant.py` | The Claude tool loop: system prompt, structured answer, links only to trial sites the tools returned; raises `AssistantUnavailable` on any failure |
 | `schemas.py` | What goes over the wire: validates input, shapes output, generates `/docs` |
 | `models.py` | What is stored: tables and constraints (e.g. one row per trial and site pair) |
 | `db.py` | Engine and `get_session`; turns on foreign keys for SQLite |

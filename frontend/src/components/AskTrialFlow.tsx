@@ -18,6 +18,9 @@ const START = [
   "Which sites will miss their target?",
 ];
 
+/** Earlier messages sent with each question (the server keeps no chat history). */
+const HISTORY = 10;
+
 /** Floating chat. Read-only: it answers from live status and never changes a milestone. */
 export default function AskTrialFlow() {
   const [open, setOpen] = useState(false);
@@ -47,6 +50,8 @@ export default function AskTrialFlow() {
   async function ask(text: string) {
     const question = text.trim();
     if (!question || busy) return;
+    // The conversation so far (before this question), so follow-ups like "who owns that?" have context.
+    const history = msgs.slice(-HISTORY).map((m) => ({ role: m.from === "you" ? "user" : "assistant", text: m.text }));
     setQ("");
     setMsgs((m) => [...m, { from: "you", text: question }]);
     setBusy(true);
@@ -54,7 +59,7 @@ export default function AskTrialFlow() {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, history }),
       });
       const a: Answer = await res.json();
       setMsgs((m) => [...m, { from: "tf", text: a.text, links: a.links, follow: a.follow }]);

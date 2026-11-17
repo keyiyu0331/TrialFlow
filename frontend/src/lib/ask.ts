@@ -1,6 +1,8 @@
 /**
- * Ask TrialFlow: answers a plain-English question from the structured status the API already returns.
- * Rule-based and read-only. It never changes a milestone, and every answer links to the record it came from.
+ * Ask TrialFlow, rule-based fallback: answers a plain-English question from the structured status the API
+ * already returns. Claude (backend /assistant/ask) answers first; app/api/ask/route.ts uses this only when
+ * no API key is set or the model call fails. Read-only: it never changes a milestone, and every answer links
+ * to the record it came from.
  */
 import type { TrialSiteDetail } from "./api";
 import { fmtDate, HEALTH_LABEL, plural, roleLabel } from "./format";
@@ -17,6 +19,8 @@ export interface Answer {
   links: AskLink[];
   /** Follow-up questions worth offering next. */
   follow?: string[];
+  /** Set to "claude" when the model answered; absent for rule-based answers. */
+  source?: "claude";
 }
 
 const STOP = new Set([

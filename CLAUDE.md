@@ -4,7 +4,8 @@ Clinical trial site-activation tracker. For each **trial site** (one site in one
 
 ## Architecture
 - `backend/app/` (FastAPI + SQLAlchemy 2): `routers/` stay thin → `services/` → `models.py`. `schemas.py` is the API contract; `enums.py` is the only place enums live (shared by models, schemas, services).
-- `services/readiness.py`: pure functions, no DB (readiness, blocking, top blocker, slip, health, `find_path` cycle check). `services/views.py`: `load_bundles()` loads milestones + dependencies and runs `analyze()` to build response shapes. `templates.py`, `registry_import.py`, `seeding.py` back the scripts.
+- `services/readiness.py`: pure functions, no DB (readiness, blocking, top blocker, slip, health, `find_path` cycle check). `services/views.py`: `load_bundles()` loads milestones + dependencies and runs `analyze()` to build response shapes. `templates.py`, `registry_import.py`, `seeding.py` back the scripts. `tasks.py` (pure) is the Python port of `openTasks` in `frontend/src/lib/insights.ts`; change both together (rule D13).
+- Assistant: `routers/assistant.py` (`POST /assistant/ask`) → `services/assistant.py` (Claude tool loop) → `services/assistant_tools.py` (`load_world()` applies scope once; tools are pure functions over that list). The Next route `frontend/src/app/api/ask/route.ts` calls it and falls back to rule-based `src/lib/ask.ts` on any non-200.
 - `scripts/import_registry.py` and `scripts/seed.py` fill the DB from `data/raw_25_studies.json` (the registry pull, source of truth).
 - `frontend/` (Next.js 16 App Router, TS, plain CSS): `src/lib/api.ts` is the typed client; `src/lib/insights.ts` derives tasks and summaries from existing endpoints (no new endpoints).
 
@@ -16,6 +17,7 @@ Before changing an area, read its doc and update it in the same change: `docs/do
 - Load data: `export DATABASE_URL=sqlite:///trialflow.db && python scripts/import_registry.py && python scripts/seed.py --reset` (`--as-of YYYY-MM-DD` pins the scenario dates)
 - API: `uvicorn app.main:app --app-dir backend --reload` → http://localhost:8000/docs, `curl localhost:8000/health`
 - Frontend: `cd frontend && npm install && npm run dev` (port 3000); check with `npm run typecheck && npm run build`
+- Assistant: export `ANTHROPIC_API_KEY` before `uvicorn` to enable Claude (`TRIALFLOW_ASSISTANT_MODEL` overrides `claude-opus-5-5`). Tests never need it: they override `assistant.get_client` with a fake client. Real model calls cost money; ask before running them.
 - Lint/format: `ruff check . && ruff format .` (Python, config in `ruff.toml`); `cd frontend && npm run lint` (`npm run format` to fix). Hooks in `.claude/settings.json` format each edit and block finishing while ruff, pytest, Biome, or typecheck fail; see `.claude/hooks/README.md`.
 
 ## Conventions
@@ -34,4 +36,5 @@ Before changing an area, read its doc and update it in the same change: `docs/do
 - API v2 has no stable location ID: keys are `ctgov_location_index` and `sites.dedup_key`; placeholder names ("Research Site") use `nct_id:index` and are never merged. Expect 25 trials / 1,662 sites / 1,715 trial sites.
 - Without `DATABASE_URL`, everything targets `postgresql+psycopg://localhost/trialflow`. A relative SQLite URL resolves against the current directory, so don't `cd backend` before `uvicorn`: it creates an empty `backend/trialflow.db` and every request fails with `no such table`.
 - Don't run `scripts/run_extraction.ps1`: the `extract_trials.py` it calls is missing.
-- Secrets come from env vars only (`.env*` is gitignored). Planned LLM layer: send only structured status with no personal data; its output is a suggestion, never a status change.
+- Secrets come from env vars only (`.env*` is gitignored).
+- LLM layer (`services/assistant*.py`): tools stay read-only and scoped through `load_world()`; they send structured status with owner name and role only (no emails, no contacts), and `redact()` strips emails and phone numbers from free text (`blocked_reason`, `notes`); output is a suggestion, never a status change; links come only from trial site ids the tools returned. Never add a tool that writes.

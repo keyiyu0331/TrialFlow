@@ -17,6 +17,7 @@ FastAPI, JSON. Interactive docs are at `/docs`. Stubs live in `backend/app/route
 | DELETE | `/dependencies/{id}` | Remove a dependency (204) | — |
 | GET | `/templates` | Default milestone checklist with predecessor codes | — |
 | GET | `/users` | Milestone owners | `site_id`, `role`, `sponsor_only` |
+| POST | `/assistant/ask` | **Ask TrialFlow:** Claude answers a question about the caller's trial sites using read-only tools. Never changes data. **503** `assistant_unavailable` when `ANTHROPIC_API_KEY` is unset or the model call fails, times out (20s), or is declined | body: `question` (1-300 chars), `history` (≤10 `{role, text}` turns, oldest first), `role`, `site_id` |
 
 \* can be repeated, e.g. `?delay_level=8_30&delay_level=over_30`.
 
@@ -98,8 +99,24 @@ Site staff close their milestone. The response returns the updated milestone, th
 A dependency conflict on POST returns:
 `409 {"detail": "Adding 1010 → 1002 would create a cycle", "code": "dependency_cycle", "cycle_path": [1002, 1009, 1010, 1002]}`
 
+### 4. `POST /assistant/ask`
+
+```json
+{"question": "What should I chase today?", "history": [], "role": "startup_manager", "site_id": null}
+```
+returns the same shape as the frontend's rule-based answer:
+```json
+{"text": "Start with IRB approval at Ironwood Cancer & Research Centers: it is 66 days late and 3 later steps wait on it. ...",
+ "links": [{"label": "Ironwood Cancer & Research Centers ( Site 0066)", "sub": "NCT06312176 · blocked · 60% ready", "href": "/sites/1440"}],
+ "follow": ["Who owns the IRB approval?"], "source": "claude"}
+```
+- **Scope:** `role` and `site_id` come from the frontend session. Sponsor/CRO roles (`startup_manager`, `cra`, `sponsor_supply`) see every tracked trial site; other roles see only trial sites at their `site_id` (none without one). The API trusts these fields because it has no authentication (see below).
+- **Tools** (read-only, scoped): `portfolio_summary`, `list_trial_sites`, `get_trial_site`, `open_tasks`. They return owner name and role only, never emails, and remove email addresses and phone numbers from free text (`blocked_reason`, `notes`) before it reaches the model.
+- **Links** are built by the backend from trial site ids the tools returned; ids the model makes up are dropped.
+- **Model:** `claude-opus-5-5` at effort `low` (override with `TRIALFLOW_ASSISTANT_MODEL`), up to 6 model calls per question.
+
 ## Not yet implemented
-Authentication (none in the MVP; `changed_by_user_id` is passed in the body).
+Authentication (none in the MVP; `changed_by_user_id` is passed in the body, and `/assistant/ask` trusts the `role`/`site_id` the frontend sends).
 
 ## Computed fields added by the readiness service
 These are derived on read (see `docs/domain-rules.md`), never stored: trial site `health`, `site_slip_days`, `projected_activation_date`; blocker `blocked_reason`, `downstream_unsatisfied`; milestone `is_ready`, `projected_finish`, `slip_days`, `is_impacted`; graph node `is_ready`, `is_impacted`.

@@ -17,6 +17,7 @@ Before a site can enroll patients it must complete about ten milestones: IRB app
 | Registry importer and synthetic activation seed | ✅ `scripts/import_registry.py`, `scripts/seed.py` |
 | Readiness, blocker, and dependency-cycle logic | ✅ `backend/app/services/readiness.py`, `docs/domain-rules.md` |
 | Frontend (Next.js / React / TypeScript) | ✅ dashboard, trial site detail with dependency graph, timeline, and milestone updates |
+| Ask TrialFlow chat (Claude, read-only tools) | ✅ `backend/app/services/assistant.py`; rule-based fallback without an API key |
 
 The demo data is labeled: trials and sites are real registry records; milestones, owners, dates, and history are synthetic.
 
@@ -90,6 +91,8 @@ cd frontend && npm install && npm run dev   # http://localhost:3000
 
 The frontend reads `API_URL` (server) and `NEXT_PUBLIC_API_URL` (browser); see `frontend/.env.example`. "Today" is the server date, and the seed dates are relative to it.
 
+**Ask TrialFlow with Claude (optional).** Export `ANTHROPIC_API_KEY` in the terminal that runs the API, and the chat answers with Claude (`claude-opus-5-5`; set `TRIALFLOW_ASSISTANT_MODEL` to use another model). Without a key, or if a model call fails, the chat uses the built-in rule-based answers. Keep the key in your environment or a gitignored `.env` file, never in the repo. Each question costs a few model calls.
+
 The tests use an in-memory SQLite database, so they need no setup. The app targets PostgreSQL; set `DATABASE_URL` (default `postgresql+psycopg://localhost/trialflow`) once the database is connected.
 
 ## Architecture
@@ -102,7 +105,7 @@ ClinicalTrials.gov API v2 → Python ingestion → PostgreSQL ← synthetic seed
                                  Next.js / React frontend
 ```
 
-See `docs/architecture.md` for the full design, including planned LLM-generated explanations.
+The Ask TrialFlow chat calls Claude from the backend with read-only tools (see `docs/api-design.md`, `POST /assistant/ask`). See `docs/architecture.md` for the full design.
 
 ## Key API endpoints
 
@@ -111,8 +114,9 @@ See `docs/architecture.md` for the full design, including planned LLM-generated 
 | GET | `/trials/{id}/sites` | Trial dashboard: readiness %, top blocker, and next-action owner per site |
 | GET | `/trial-sites/{id}/graph` | Milestones, dependencies, and blocking flags |
 | PATCH | `/milestones/{id}` | Update status, owner, or due date (recorded in history) |
+| POST | `/assistant/ask` | Ask TrialFlow: Claude answers from live status (read-only) |
 
-See `docs/api-design.md` for all 11 endpoints with examples.
+See `docs/api-design.md` for all 12 endpoints with examples.
 
 ## Team
 

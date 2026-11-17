@@ -33,15 +33,15 @@ flowchart TD
  D --> E[Deterministic readiness and blocker engine]
  E --> D
  D <--> F[React / Next.js frontend]
- D -. Future: filtered evidence with human approval .-> G[LLM explanation service]
- G -. Suggested summary only .-> D
+ D -- Scoped status via read-only tools --> G[Claude API: Ask TrialFlow assistant]
+ G -- Suggested answer only --> D
 ```
 
 The ingestion job requests and validates public study and location data, maps NCT IDs and reported facilities to local IDs, and upserts records into PostgreSQL. A separate seeding script creates explicitly synthetic operational milestones such as IRB approval, contract signature, budget finalization, training, pharmacy readiness, and drug shipment. Foreign keys associate milestones with a site. API responses include a provenance marker identifying public-registry or synthetic data.
 
 The backend exposes trial lists, sites and milestone status, and a readiness summary. A deterministic dependency engine checks whether required milestones are complete and identifies missing prerequisites. For example, a site can be blocked by an incomplete IRB approval or unsigned contract. The frontend shows the trial overview, site-by-site milestone checklist, priority blockers, and next responsible action. In the MVP, synthetic milestone changes are local application data and never written to ClinicalTrials.gov.
 
-Future LLM integration attaches to the backend after the readiness engine. It receives filtered, structured site status and evidence with no unnecessary personal data, and generates *suggested explanations* rather than authoritative status changes. Missing evidence must remain unknown. The final readiness result is computed from recorded milestone states, not inferred by the model.
+The LLM layer attaches to the backend after the readiness engine (`POST /assistant/ask`, `backend/app/services/assistant.py`). Claude answers chat questions by calling read-only tools that return filtered, structured site status: only the trial sites the caller may see, and owner names and roles but no emails or contact details. It generates *suggested answers* (and draft follow-up messages for the user to send), never authoritative status changes, and links only to trial sites the tools returned. Missing evidence must remain unknown. The final readiness result is computed from recorded milestone states, not inferred by the model. If no API key is configured or the call fails, the frontend falls back to the rule-based answers in `frontend/src/lib/ask.ts`.
 
 ### Key database entities
 - `trials`: `id`, `nct_id` (unique), `title`, `overall_status`, `start_date`, `completion_date`, `last_registry_sync_at`.
@@ -63,7 +63,7 @@ For the prototype, the readiness percentage is `number of required milestones ma
 | Database | PostgreSQL | Supports trial-site-milestone relationships and dependency queries |
 | Frontend | Next.js, React, TypeScript | Interactive dashboard and site status views |
 | Automated tests | pytest, Playwright | Verify readiness rules and end-to-end workflows |
-| Future LLM | Provider API behind FastAPI | Generate grounded explanations only after MVP logic works |
+| LLM | Claude API (`anthropic` Python SDK) behind FastAPI | Grounded chat answers through read-only tools; rule-based fallback |
 
 **Scope boundaries:** The MVP uses 25 real trials, their reported locations, and synthetic activation records. It does not access confidential sponsor systems, represent recruitment status as readiness, make regulatory decisions, or claim production integrations that are not implemented. API imports should be refreshable and retain source timestamps so changing public records remain traceable.
 

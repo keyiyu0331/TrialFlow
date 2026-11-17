@@ -7,6 +7,7 @@ data outside the caller's scope. Tools return compact JSON-able dicts with owner
 name and role only (never email or other contact details) and never change anything.
 """
 
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
@@ -54,6 +55,20 @@ def load_world(session: Session, scope: Scope, today: date, now: datetime) -> li
 # ---------- Shapes sent to the model ----------
 
 
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+# International (+44 115 924 9924) and North American ((602) 555-0142, 602.555.0142) numbers.
+# Dates such as 2026-11-20 don't match either form.
+_PHONE = re.compile(r"\+\d[\d\s().-]{6,}\d|(?<!\d)(?:\(\d{3}\)\s?|\d{3}[\s.-])\d{3}[\s.-]\d{4}(?!\d)")
+REDACTED = "[contact removed]"
+
+
+def redact(text: str | None) -> str | None:
+    """Free text (blocked reasons, notes) is typed by users and could hold contact details; strip them."""
+    if not text:
+        return text
+    return _PHONE.sub(REDACTED, _EMAIL.sub(REDACTED, text))
+
+
 def _owner(o: s.OwnerRef | None) -> dict | None:
     return {"name": o.name, "role": o.role.value} if o else None
 
@@ -80,7 +95,7 @@ def _site_row(d: s.TrialSiteDetail) -> dict:
                 "milestone": b.milestone_name,
                 "status": b.status.value,
                 "days_overdue": b.days_overdue,
-                "blocked_reason": b.blocked_reason,
+                "blocked_reason": redact(b.blocked_reason),
                 "owner": _owner(b.owner),
                 "later_steps_waiting": b.downstream_unsatisfied,
             }
@@ -107,7 +122,7 @@ def _task_row(t: tk.Task) -> dict:
         "due_date": _d(ms.due_date),
         "days_until_due": t.until,
         "days_overdue": ms.days_overdue,
-        "blocked_reason": ms.blocked_reason,
+        "blocked_reason": redact(ms.blocked_reason),
     }
 
 
@@ -151,8 +166,8 @@ def get_trial_site(world: list[s.TrialSiteDetail], as_of: date, trial_site_id: i
                 "is_ready_to_start": ms.is_ready,
                 "waits_on": [names[p] for p in ms.predecessor_ids if p in names],
                 "expected_finish": _d(ms.projected_finish),
-                "blocked_reason": ms.blocked_reason,
-                "notes": ms.notes,
+                "blocked_reason": redact(ms.blocked_reason),
+                "notes": redact(ms.notes),
             }
             for ms in d.milestones
         ],

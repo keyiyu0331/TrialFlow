@@ -108,6 +108,37 @@ def test_tool_results_carry_no_emails(world):
     assert "@" not in dumped and "email" not in dumped
 
 
+CONTACTS = "Call Jane at jane.doe@hospital.org, +44 115 924 9924 or (602) 555-0142; IRB meets 2026-11-20"
+
+
+def test_free_text_contact_details_are_redacted(world):
+    """blocked_reason and notes are free text anyone can type; emails and phone numbers must not reach the model."""
+    d = next(x for x in world if x.top_blocker and x.activation_status == ActivationStatus.in_startup)
+    blocker_id = d.top_blocker.milestone_id
+    planted = d.model_copy(
+        update={
+            "milestones": [
+                ms.model_copy(update={"blocked_reason": CONTACTS, "notes": CONTACTS}) if ms.id == blocker_id else ms
+                for ms in d.milestones
+            ],
+            "top_blocker": d.top_blocker.model_copy(update={"blocked_reason": CONTACTS}),
+        }
+    )
+    w = [planted if x.id == d.id else x for x in world]
+    out = [
+        tools.run_tool("get_trial_site", {"trial_site_id": d.id}, w, AS_OF).result,
+        tools.run_tool("list_trial_sites", {}, w, AS_OF).result,
+        tools.run_tool("portfolio_summary", {}, w, AS_OF).result,
+        tools.run_tool("open_tasks", {"milestone": d.top_blocker.milestone_name, "limit": 50}, w, AS_OF).result,
+    ]
+    dumped = json.dumps(out)
+    assert "Call Jane" in dumped  # the reason itself still reaches the model ...
+    for secret in ("jane.doe", "@", "924 9924", "555-0142"):  # ... without the contact details
+        assert secret not in dumped, secret
+    assert "2026-11-20" in dumped  # dates are not phone numbers
+    assert "[contact removed]" in dumped
+
+
 def test_open_tasks_filters(world):
     urgent = tools.run_tool("open_tasks", {"kind": "urgent", "limit": 50}, world, AS_OF).result
     assert urgent["tasks"] and all(t["kind"] in ("blocked", "overdue", "due_soon") for t in urgent["tasks"])

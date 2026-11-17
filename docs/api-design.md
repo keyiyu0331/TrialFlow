@@ -111,7 +111,7 @@ returns the same shape as the frontend's rule-based answer:
  "follow": ["Who owns the IRB approval?"], "source": "claude"}
 ```
 - **Scope:** `role` and `site_id` come from the frontend session. Sponsor/CRO roles (`startup_manager`, `cra`, `sponsor_supply`) see every tracked trial site; other roles see only trial sites at their `site_id` (none without one). The API trusts these fields because it has no authentication (see below).
-- **Tools** (read-only, scoped): `portfolio_summary`, `list_trial_sites`, `get_trial_site`, `open_tasks`. They return owner name and role only, never emails.
+- **Tools** (read-only, scoped): `portfolio_summary`, `list_trial_sites`, `get_trial_site`, `open_tasks`. They return owner name and role only, never emails, and remove email addresses and phone numbers from free text (`blocked_reason`, `notes`) before it reaches the model.
 - **Links** are built by the backend from trial site ids the tools returned; ids the model makes up are dropped.
 - **Model:** `claude-opus-5-5` at effort `low` (override with `TRIALFLOW_ASSISTANT_MODEL`), up to 6 model calls per question.
 

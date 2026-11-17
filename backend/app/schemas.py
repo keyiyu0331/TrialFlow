@@ -6,7 +6,7 @@ registry data versus synthetic activation data.
 """
 
 from datetime import date, datetime
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -318,3 +318,39 @@ class TemplateOut(ORMModel):
     is_gate: bool
     sort_order: int
     predecessor_codes: list[str]
+
+
+# ---------- Assistant (Ask TrialFlow) ----------
+
+
+class AskTurn(BaseModel):
+    """One earlier chat message, oldest first."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    text: str = Field(max_length=4000)
+
+
+class AskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=1, max_length=300)
+    history: list[AskTurn] = Field(default_factory=list, max_length=10, description="Last turns, oldest first")
+    role: UserRole = Field(description="Caller's role, from the frontend session (the API has no auth)")
+    site_id: int | None = Field(default=None, description="Caller's site; scopes answers for site staff")
+
+
+class AskLink(BaseModel):
+    label: str
+    sub: str | None = None
+    href: str
+
+
+class AskAnswer(BaseModel):
+    """Same shape as the rule-based answer in frontend/src/lib/ask.ts, plus where it came from."""
+
+    text: str
+    links: list[AskLink] = Field(description="Only trial sites the assistant actually looked up")
+    follow: list[str] = Field(default_factory=list, description="Suggested follow-up questions")
+    source: Literal["claude"] = "claude"

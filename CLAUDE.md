@@ -16,7 +16,7 @@ Before changing an area, read its doc and update it in the same change: `docs/do
 ## Commands (from repo root)
 - Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt && pre-commit install`
 - Tests: `cd backend && pytest` (in-memory SQLite, no setup). One file: `cd backend && pytest tests/test_readiness.py`
-- Load data: `export DATABASE_URL=sqlite:///trialflow.db && python scripts/import_registry.py && python scripts/seed.py --reset` (`--as-of YYYY-MM-DD` pins the scenario dates)
+- Load data: `export DATABASE_URL=sqlite:///trialflow.db && python scripts/import_registry.py && python scripts/seed.py --reset` (`--as-of YYYY-MM-DD` pins the scenario dates). Both scripts call `db.init_db`, which also adds columns newer code needs to an older DB (no `create_all` alone, it never alters tables); add new columns there
 - API: `uvicorn app.main:app --app-dir backend --reload` → http://localhost:8000/docs, `curl localhost:8000/health`
 - Frontend: `cd frontend && npm install && npm run dev` (port 3000); check with `npm run typecheck && npm run build`
 - Assistant: export `ANTHROPIC_API_KEY` before `uvicorn` to enable Claude (`TRIALFLOW_ASSISTANT_MODEL` overrides `claude-opus-5-5`). Tests never need it: they override `assistant.get_client` with a fake client. Real model calls cost money; ask before running them.

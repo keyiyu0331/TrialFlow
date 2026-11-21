@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.db import Base, get_engine  # noqa: E402
+from app.db import get_engine, init_db  # noqa: E402
 from app.services.seeding import clear_seed, is_seeded, seed  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
@@ -27,7 +27,7 @@ def main() -> None:
     args = parser.parse_args()
 
     engine = get_engine()
-    Base.metadata.create_all(engine)
+    init_db(engine)
     with Session(engine) as session:
         if is_seeded(session):
             if not args.reset:

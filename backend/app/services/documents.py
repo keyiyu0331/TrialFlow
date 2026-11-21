@@ -10,11 +10,11 @@ import io
 import json
 import logging
 import re
+from typing import NamedTuple
 
 import anthropic
 from pydantic import BaseModel, ValidationError
 from pypdf import PdfReader
-from pypdf.errors import PyPdfError
 
 from .. import schemas as s
 from ..enums import DocumentCategory
@@ -26,6 +26,7 @@ log = logging.getLogger(__name__)
 MAX_BYTES = 2 * 1024 * 1024
 MAX_CHARS = 20_000  # text sent to the model; longer documents are cut and flagged
 MAX_PDF_PAGES = 25
+MAX_FACTS = 6
 DEADLINE_S = 20.0
 SUPPORTED = (".pdf", ".txt", ".md")
 
@@ -109,8 +110,32 @@ class _Draft(BaseModel):
 # ---------- Reading the file ----------
 
 
-def extract_text(filename: str, data: bytes) -> str:
-    """Plain text from a PDF, .txt or .md upload."""
+class Extracted(NamedTuple):
+    text: str
+    truncated: bool  # True if pages past MAX_PDF_PAGES were not read
+
+
+def _decode_text(data: bytes) -> str:
+    """UTF-8 (with or without a byte-order mark) or UTF-16 with a byte-order mark; anything else is refused."""
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        encoding = "utf-16"
+    else:
+        encoding = "utf-8-sig"
+    try:
+        text = data.decode(encoding)
+    except UnicodeDecodeError as e:
+        raise DocumentError(
+            "That text file is not UTF-8 or UTF-16. Save it as UTF-8 and try again.", "unsupported_encoding", 422
+        ) from e
+    if "\x00" in text:
+        raise DocumentError(
+            "That text file is not UTF-8 or UTF-16. Save it as UTF-8 and try again.", "unsupported_encoding", 422
+        )
+    return text
+
+
+def read_document(filename: str, data: bytes) -> Extracted:
+    """Plain text from a PDF, .txt or .md upload, and whether part of a long PDF was left out."""
     name = filename.lower()
     if not name.endswith(SUPPORTED):
         raise DocumentError("Upload a PDF, .txt or .md file.", "unsupported_file_type", 415)
@@ -118,19 +143,27 @@ def extract_text(filename: str, data: bytes) -> str:
         raise DocumentError("The file is empty.", "empty_file", 422)
     if len(data) > MAX_BYTES:
         raise DocumentError("The file is larger than 2 MB.", "file_too_large", 413)
+    pages_cut = False
     if name.endswith(".pdf"):
         try:
             reader = PdfReader(io.BytesIO(data))
-            text = "\n".join((page.extract_text() or "") for page in reader.pages[:MAX_PDF_PAGES])
-        except (PyPdfError, ValueError, KeyError, OSError) as e:
+            pages = reader.pages
+            pages_cut = len(pages) > MAX_PDF_PAGES
+            text = "\n".join((pages[i].extract_text() or "") for i in range(min(len(pages), MAX_PDF_PAGES)))
+        except Exception as e:  # noqa: BLE001 - pypdf raises many types on malformed files
             raise DocumentError("That PDF could not be read.", "unreadable_pdf", 422) from e
     else:
-        text = data.decode("utf-8", errors="replace")
-    text = re.sub(r"[ \t]+", " ", text)
+        text = _decode_text(data)
+    text = re.sub(r"[ \t]{2,}|\t", "  ", text)  # keep wide gaps: they separate fields on one line
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     if len(text) < 20:
         raise DocumentError("No readable text found. Scanned PDFs are not supported yet.", "no_text", 422)
-    return text
+    return Extracted(text, pages_cut)
+
+
+def extract_text(filename: str, data: bytes) -> str:
+    """Just the text of :func:`read_document`."""
+    return read_document(filename, data).text
 
 
 # ---------- Rule-based fallback ----------
@@ -170,6 +203,23 @@ _DATE = re.compile(
 )
 
 
+def _date_label(before: str) -> str:
+    """Name a date from the words just before it, never from an earlier field on the same line.
+
+    "Courier: Example Courier    Shipment date: 2026-10-27" gives "Shipment date". Fields are
+    split on a tab, two or more spaces, ";" or "|".
+    """
+    field = re.split(r"\s{2,}|\t|[;|]", before.strip())[-1].strip(" -\u2013,")
+    if field.endswith(":"):
+        field = field[:-1]
+    elif ":" in field:
+        field = field.rsplit(":", 1)[1].strip()
+        if len(field.split()) > 2:  # unclear where the label starts
+            return "Date mentioned"
+    label = " ".join(field.strip(" :-\u2013,").split()[-3:])
+    return label if 0 < len(label) <= 50 else "Date mentioned"
+
+
 def rule_based_analysis(filename: str, text: str, truncated: bool) -> s.DocumentAnalysis:
     """Keyword category, the first sentences as a summary, and any dates found. No model."""
     lower = text.lower()
@@ -180,11 +230,12 @@ def rule_based_analysis(filename: str, text: str, truncated: bool) -> s.Document
     first_line = lines[0] if lines else filename
     facts: list[s.DocumentFact] = []
     for line in text.splitlines():
-        match = _DATE.search(line)
-        if match and len(facts) < 4:
-            prefix = line[: match.start()].strip()
-            head = prefix.split(":")[0].strip() if ":" in prefix else ""
-            label = head if 0 < len(head) <= 50 else "Date mentioned"
+        previous_end = 0
+        for match in _DATE.finditer(line):
+            if len(facts) >= MAX_FACTS:
+                break
+            label = _date_label(line[previous_end : match.start()])
+            previous_end = match.end()
             facts.append(s.DocumentFact(label=label, value=match.group(1), quote=line.strip()[:200]))
     return s.DocumentAnalysis(
         filename=filename,
@@ -209,11 +260,17 @@ def _verified(facts: list[s.DocumentFact], text: str) -> list[s.DocumentFact]:
     return [f for f in facts if f.quote.strip() and squash(f.quote) in haystack][:6]
 
 
-def analyze(client: anthropic.Anthropic | None, filename: str, text: str) -> s.DocumentAnalysis:
-    """Summarize and categorize. Claude when configured, the rule-based analyzer otherwise or on any failure."""
+def analyze(
+    client: anthropic.Anthropic | None, filename: str, text: str, truncated: bool = False
+) -> s.DocumentAnalysis:
+    """Summarize and categorize. Claude when configured, the rule-based analyzer otherwise or on any failure.
+
+    ``truncated`` says pages were already left out when the file was read; text over MAX_CHARS also sets it.
+    """
     text = redact(text) or ""
-    truncated = len(text) > MAX_CHARS
+    truncated = truncated or len(text) > MAX_CHARS
     text = text[:MAX_CHARS]
+    safe_name = json.dumps(redact(filename) or "document")  # a file name can hold an email address
     if client is None:
         return rule_based_analysis(filename, text, truncated)
     try:
@@ -221,7 +278,12 @@ def analyze(client: anthropic.Anthropic | None, filename: str, text: str) -> s.D
             model=model_name(),
             max_tokens=4000,
             system=[{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": f"<document filename={json.dumps(filename)}>\n{text}\n</document>"}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"<document filename={safe_name}>\n{text}\n</document>",
+                }
+            ],
             output_config={"effort": "low", "format": {"type": "json_schema", "schema": ANALYSIS_SCHEMA}},
             betas=[FALLBACK_BETA],
             fallbacks="default",

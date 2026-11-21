@@ -56,7 +56,10 @@ export default function AskTrialFlow() {
     const question = text.trim();
     if (!question || busy) return;
     // The conversation so far (before this question), so follow-ups like "who owns that?" have context.
-    const history = msgs.slice(-HISTORY).map((m) => ({ role: m.from === "you" ? "user" : "assistant", text: m.text }));
+    const history = msgs.slice(-HISTORY).map((m) => ({
+      role: m.from === "you" ? "user" : "assistant",
+      text: m.doc ? docContext(m.doc) : m.text,
+    }));
     setQ("");
     setMsgs((m) => [...m, { from: "you", text: question }]);
     setBusy(true);
@@ -204,6 +207,13 @@ export default function AskTrialFlow() {
   );
 }
 
+/** The uploaded document as text for the chat history, so follow-up questions can refer to it. */
+function docContext(doc: DocumentAnalysis): string {
+  const facts = doc.key_facts.map((f) => `${f.label}: ${f.value}`).join("; ");
+  const text = `Uploaded document "${doc.filename}" (${doc.category_label}): ${doc.title}. ${doc.summary}${facts ? ` Key facts: ${facts}.` : ""}`;
+  return text.slice(0, 3900);
+}
+
 /** What the assistant found in an uploaded document. Suggestion only. */
 function DocCard({ doc }: { doc: DocumentAnalysis }) {
   return (
@@ -216,8 +226,9 @@ function DocCard({ doc }: { doc: DocumentAnalysis }) {
       <p>{doc.summary}</p>
       {doc.key_facts.length > 0 && (
         <dl className="ask__facts">
-          {doc.key_facts.map((f) => (
-            <div key={f.label + f.value}>
+          {doc.key_facts.map((f, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: facts can repeat, and the list never reorders
+            <div key={`${i}-${f.label}-${f.value}`}>
               <dt>{f.label}</dt>
               <dd title={`"${f.quote}"`}>{f.value}</dd>
             </div>

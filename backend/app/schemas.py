@@ -126,6 +126,7 @@ class TrialRef(ORMModel):
     nct_id: str | None
     title: str
     trial_type: TrialType
+    source_type: SourceType
 
 
 # ---------- Milestones ----------
@@ -381,3 +382,6 @@ class DocumentAnalysis(BaseModel):
     key_facts: list[DocumentFact]
     source: Literal["claude", "rule_based"] = Field(description="Which analyzer produced this")
     truncated: bool = Field(description="True if only the start of a long document was read")
+    source_type: SourceType = Field(
+        default=SourceType.synthetic, description="Generated analysis of an upload; never registry data"
+    )

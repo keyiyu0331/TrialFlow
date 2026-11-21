@@ -140,3 +140,12 @@ def test_instantiating_twice_is_refused_and_templates_are_idempotent(session, wo
         instantiate_trial_site(session, ts, date(2026, 10, 1))
     first = ensure_templates(session)
     assert ensure_templates(session).keys() == first.keys()
+
+
+def test_synthetic_device_sites_have_no_registry_location_index(seeded):
+    from app import models as m
+    from sqlalchemy import select
+
+    trial = seeded.scalar(select(m.Trial).where(m.Trial.nct_id.is_(None), m.Trial.source_type == "synthetic"))
+    sites = seeded.scalars(select(m.TrialSite).where(m.TrialSite.trial_id == trial.id)).all()
+    assert len(sites) == 6 and all(ts.ctgov_location_index is None for ts in sites)

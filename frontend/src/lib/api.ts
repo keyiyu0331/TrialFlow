@@ -92,7 +92,7 @@ export interface Milestone {
 }
 
 export interface TrialSiteDetail extends TrialSiteSummary {
-  trial: { id: number; nct_id: string | null; title: string; trial_type: TrialType };
+  trial: { id: number; nct_id: string | null; title: string; trial_type: TrialType; source_type: SourceType };
   selected_date: string | null;
   milestones: Milestone[];
 }
@@ -284,4 +284,5 @@ export interface DocumentAnalysis {
   key_facts: { label: string; value: string; quote: string }[];
   source: "claude" | "rule_based";
   truncated: boolean;
+  source_type: SourceType;
 }

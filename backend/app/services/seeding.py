@@ -432,7 +432,7 @@ def _ensure_synthetic_device_trial(session: Session) -> m.Trial:
         session.add(trial)
         session.flush()
     have = {ts.site.name for ts in session.scalars(select(m.TrialSite).where(m.TrialSite.trial_id == trial.id))}
-    for index, (name, city, state, lat, lon) in enumerate(SYNTHETIC_DEVICE_SITES, start=1):
+    for name, city, state, lat, lon in SYNTHETIC_DEVICE_SITES:
         if name in have:
             continue
         site = session.scalar(select(m.Site).where(m.Site.dedup_key == f"synthetic|{name.lower()}"))
@@ -453,7 +453,7 @@ def _ensure_synthetic_device_trial(session: Session) -> m.Trial:
             m.TrialSite(
                 trial_id=trial.id,
                 site_id=site.id,
-                ctgov_location_index=index,
+                ctgov_location_index=None,  # synthetic sites have no registry location
                 activation_status=ActivationStatus.selected,
                 source_type=SourceType.synthetic,
             )
@@ -514,7 +514,7 @@ def seed(
             select(m.TrialSite)
             .join(m.Site)
             .where(m.TrialSite.trial_id == trial.id, ~m.Site.is_placeholder_name)
-            .order_by(m.TrialSite.ctgov_location_index)
+            .order_by(m.TrialSite.ctgov_location_index, m.TrialSite.id)
         ).all()
         plan = TRIAL_PLANS[nct_id]
         trial_type = classify_trial_type(trial.intervention_types)

@@ -17,6 +17,7 @@ export default async function Trials() {
     }
     throw e;
   }
+  const syntheticTrials = items.filter((t) => t.source_type === "synthetic").length;
   const tracked = (t: (typeof items)[number]) =>
     t.activation_counts.in_startup + t.activation_counts.activated + t.activation_counts.on_hold;
   const bySites = (a: (typeof items)[number], b: (typeof items)[number]) => b.site_count - a.site_count;
@@ -30,9 +31,11 @@ export default async function Trials() {
           <div className="dh__eyebrow">Trials</div>
           <h1 className="dh__title">{active.length} trials we are tracking</h1>
           <p className="dh__sub">
-            {items.filter((t) => t.source_type === "public_registry").length} real trials from ClinicalTrials.gov, plus
-            one synthetic device trial (the registry pull has none). The ones below have demo start-up data, so you can
-            see how site activation is going. Drug, device and no-product trials each get their own milestones.
+            {items.filter((t) => t.source_type === "public_registry").length} real trials from ClinicalTrials.gov
+            {syntheticTrials > 0 &&
+              `, plus ${syntheticTrials} synthetic device ${syntheticTrials === 1 ? "trial" : "trials"} (the registry pull has none)`}
+            . The ones below have demo start-up data, so you can see how site activation is going. Drug, device and
+            no-product trials each get their own milestones.
           </p>
         </div>
       </header>

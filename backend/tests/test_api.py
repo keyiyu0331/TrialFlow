@@ -346,3 +346,12 @@ def test_cors_allows_the_frontend_dev_server(client):
 @pytest.mark.parametrize("path", ["/health"])
 def test_health(client, path):
     assert client.get(path).json() == {"status": "ok"}
+
+
+def test_trial_ref_and_document_analysis_carry_source_type(client):
+    detail = client.get(f"/trial-sites/{site_by_scenario(client, 'irb_delay')['id']}").json()
+    assert detail["trial"]["source_type"] in ("public_registry", "synthetic")
+    r = client.post(
+        "/assistant/document", params={"filename": "a.txt"}, content=b"IRB approval letter. Approval date: 2026-10-12"
+    )
+    assert r.json()["source_type"] == "synthetic"

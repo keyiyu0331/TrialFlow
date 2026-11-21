@@ -26,7 +26,7 @@ Only the key columns are listed; `models.py` is the source of truth.
 
 **sites**: `dedup_key` (unique), `name`, `is_placeholder_name`, `city`, `state`, `zip`, `country`, `latitude`/`longitude` (city-level centroid, range-checked), `source_type`.
 
-**trial_sites**: `trial_id` FK, `site_id` FK, **UNIQUE(trial_id, site_id)**, `ctgov_location_index` (≥ 1), `reported_recruitment_status` (CT.gov enum), `activation_status` (`selected | in_startup | activated | on_hold | dropped`), `selected_date`, `target_activation_date`, `actual_activation_date` (**CHECK** only set when activated), `scenario_label`, `source_type`.
+**trial_sites**: `trial_id` FK, `site_id` FK, **UNIQUE(trial_id, site_id)**, `ctgov_location_index` (≥ 1; NULL for the synthetic device trial's sites, which have no registry location), `reported_recruitment_status` (CT.gov enum), `activation_status` (`selected | in_startup | activated | on_hold | dropped`), `selected_date`, `target_activation_date`, `actual_activation_date` (**CHECK** only set when activated), `scenario_label`, `source_type`.
 
 **users**: `name`, `email` (unique), `role` (`startup_manager | cra | site_coordinator | regulatory | contracts | pharmacist | lab_manager | pi | sponsor_supply`), `site_id` FK (null for sponsor or CRO staff), `team_name` (set when the owner is a team).
 
@@ -88,3 +88,5 @@ The drug checklist (ten milestones) is the original default. Drug durations are 
 | Readiness % | (complete + not_applicable) ÷ all milestones × 100. This matches Samhita's "complete ÷ required" because not_applicable = not required |
 | Ready | All milestones satisfied and no unresolved blocker (Samhita's definition) |
 | Projected activation (stretch) | Longest remaining path to GREEN_LIGHT |
+
+**Upgrading an existing database:** `scripts/import_registry.py` and `scripts/seed.py` call `db.init_db`, which creates missing tables and adds `trials.intervention_types` (`JSON NOT NULL DEFAULT '[]'`) to an older `trials` table. Re-run the import to fill it for registry trials. No rebuild is needed.

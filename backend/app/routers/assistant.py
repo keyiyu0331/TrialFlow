@@ -61,9 +61,29 @@ async def analyze_document(
     client: anthropic.Anthropic | None = Depends(assistant.get_client),
 ):
     """The body is the raw file bytes. Uses Claude when configured and a rule-based analyzer otherwise."""
-    data = await request.body()
+    data = await _read_capped(request)
     try:
-        text = documents.extract_text(filename, data)
+        read = await run_in_threadpool(documents.read_document, filename, data)
     except documents.DocumentError as e:
         raise HTTPException(e.status, detail={"detail": e.detail, "code": e.code}) from e
-    return await run_in_threadpool(documents.analyze, client, filename, text)
+    return await run_in_threadpool(documents.analyze, client, filename, read.text, read.truncated)
+
+
+def _too_large() -> HTTPException:
+    return HTTPException(
+        413,
+        detail={"detail": "The file is larger than 2 MB.", "code": "file_too_large"},
+    )
+
+
+async def _read_capped(request: Request) -> bytes:
+    """The request body, refused as soon as it passes the size limit instead of after buffering it all."""
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > documents.MAX_BYTES:
+        raise _too_large()
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > documents.MAX_BYTES:
+            raise _too_large()
+    return bytes(body)

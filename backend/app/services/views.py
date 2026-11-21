@@ -187,6 +187,7 @@ def trial_site_detail(bundle: SiteBundle, site: m.Site, trial: m.Trial, now: dat
             nct_id=trial.nct_id,
             title=trial.title,
             trial_type=classify_trial_type(trial.intervention_types),
+            source_type=trial.source_type,
         ),
         selected_date=bundle.trial_site.selected_date,
         milestones=[milestone_out(ms, bundle, now) for ms in bundle.milestones],

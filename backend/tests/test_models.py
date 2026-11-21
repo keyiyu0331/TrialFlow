@@ -145,3 +145,18 @@ def test_invalid_enum_value_rejected(session, world):
     with pytest.raises(IntegrityError):
         session.execute(text("UPDATE trial_sites SET activation_status = 'live'"))
     session.rollback()
+
+
+def test_init_db_adds_the_intervention_types_column_to_an_older_database(tmp_path):
+    from app.db import init_db, make_engine
+    from sqlalchemy import inspect, text
+
+    engine = make_engine(f"sqlite:///{tmp_path / 'old.db'}")
+    with engine.begin() as conn:  # the trials table as it was before trial types
+        conn.execute(text("CREATE TABLE trials (id INTEGER PRIMARY KEY, title TEXT NOT NULL)"))
+        conn.execute(text("INSERT INTO trials (id, title) VALUES (1, 'Existing trial')"))
+    init_db(engine)
+    init_db(engine)  # safe to run again
+    assert "intervention_types" in {c["name"] for c in inspect(engine).get_columns("trials")}
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT intervention_types FROM trials WHERE id = 1")).scalar() == "[]"

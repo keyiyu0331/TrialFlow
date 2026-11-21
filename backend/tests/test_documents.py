@@ -191,3 +191,88 @@ def test_uploading_changes_nothing_in_the_database(client):
     before = client.get("/trials?limit=500").json()
     post(client, "letter.txt", sample("irb_approval_letter.txt"))
     assert client.get("/trials?limit=500").json() == before
+
+
+# ---------- review fixes ----------
+
+
+def test_a_date_is_labeled_by_the_field_right_before_it():
+    text = documents.extract_text("r.txt", sample("device_shipment_receipt.txt"))
+    facts = {f.value: f.label for f in documents.analyze(None, "r.txt", text).key_facts}
+    assert facts["2026-10-27"] == "Shipment date"  # not "Courier"
+
+
+def test_every_date_on_a_line_is_found():
+    text = documents.extract_text("a.txt", sample("clinical_trial_agreement_summary.txt"))
+    values = {f.value for f in documents.analyze(None, "a.txt", text).key_facts}
+    assert {"November 4, 2026", "2026-11-20"} <= values  # the response deadline is the second date on its line
+
+
+def test_pages_past_the_limit_are_flagged_as_truncated(monkeypatch):
+    from pypdf import PdfReader
+
+    pages = len(PdfReader(SAMPLES / "irb_approval_letter.pdf").pages)
+    assert not documents.read_document("l.pdf", sample("irb_approval_letter.pdf")).truncated
+    monkeypatch.setattr(documents, "MAX_PDF_PAGES", pages - 1)
+    if pages > 1:
+        assert documents.read_document("l.pdf", sample("irb_approval_letter.pdf")).truncated
+
+
+def test_truncated_flag_reaches_the_answer():
+    assert documents.analyze(None, "a.pdf", "IRB approval letter text that is long enough", truncated=True).truncated
+
+
+@pytest.mark.parametrize("error", [TypeError, AttributeError, IndexError, RecursionError, KeyError])
+def test_any_pdf_parser_error_is_a_422_not_a_500(monkeypatch, error):
+    def boom(*args, **kwargs):
+        raise error("malformed")
+
+    monkeypatch.setattr(documents, "PdfReader", boom)
+    with pytest.raises(documents.DocumentError) as e:
+        documents.read_document("bad.pdf", b"%PDF-1.4 something")
+    assert (e.value.code, e.value.status) == ("unreadable_pdf", 422)
+
+
+def test_utf16_and_utf8_bom_text_is_read():
+    line = "Approval date: 2026-10-12. The IRB approved the study."
+    assert "2026-10-12" in documents.extract_text("a.txt", line.encode("utf-16"))
+    assert "2026-10-12" in documents.extract_text("a.txt", b"\xef\xbb\xbf" + line.encode())
+
+
+@pytest.mark.parametrize("data", [b"Approval date \xe9 2026-10-12 and the IRB approved it", "a\x00b" * 20])
+def test_unsupported_text_encodings_are_refused_not_garbled(data):
+    data = data.encode() if isinstance(data, str) else data
+    with pytest.raises(documents.DocumentError) as e:
+        documents.extract_text("a.txt", data)
+    assert (e.value.code, e.value.status) == ("unsupported_encoding", 422)
+
+
+def test_the_file_name_is_redacted_before_it_goes_to_claude():
+    client = FakeClient(IRB_PAYLOAD)
+    documents.analyze(client, "jane.doe@example.org approval.txt", "IRB approval letter. Approval date: 2026-10-12")
+    sent = client.calls[0]["messages"][0]["content"]
+    assert "jane.doe@example.org" not in sent
+
+
+def test_oversized_upload_is_refused_from_the_declared_length(client):
+    r = client.post(
+        "/assistant/document",
+        params={"filename": "big.txt"},
+        content=b"a",
+        headers={"content-length": str(documents.MAX_BYTES + 1)},
+    )
+    assert r.status_code in (400, 413)
+
+
+def test_chunked_oversized_upload_is_cut_off(client):
+    def chunks():
+        for _ in range(4):
+            yield b"a" * (documents.MAX_BYTES // 2)
+
+    r = client.post("/assistant/document", params={"filename": "big.txt"}, content=chunks())
+    assert r.status_code == 413 and r.json()["code"] == "file_too_large"
+
+
+def test_a_corrupt_pdf_over_http_is_422(client):
+    r = post(client, "bad.pdf", b"%PDF-1.7\n1 0 obj << /Type /Pages /Kids [ 1 0 R ] >> endobj")
+    assert r.status_code == 422 and r.json()["code"] in ("unreadable_pdf", "no_text")

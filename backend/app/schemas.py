@@ -18,6 +18,7 @@ from .enums import (
     RecruitmentStatus,
     SiteHealth,
     SourceType,
+    TrialType,
     UserRole,
     Workstream,
 )
@@ -97,6 +98,7 @@ class TrialSummary(ORMModel):
     title: str
     acronym: str | None
     phases: list[str]
+    trial_type: TrialType = Field(description="Computed from intervention types: drug, device, or no_product")
     sponsor_name: str | None
     overall_status: RecruitmentStatus | None
     site_count: int = Field(description="Computed: number of trial sites")
@@ -122,6 +124,7 @@ class TrialRef(ORMModel):
     id: int
     nct_id: str | None
     title: str
+    trial_type: TrialType
 
 
 # ---------- Milestones ----------

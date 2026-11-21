@@ -15,7 +15,7 @@ FastAPI, JSON. Interactive docs are at `/docs`. Stubs live in `backend/app/route
 | PATCH | `/milestones/{id}` | **Update status, owner, or due date;** writes one event per changed field; a `blocked` status change keeps `blocked_reason` as its note; `complete` is rejected (409) while predecessors are open | body: `status`, `owner_user_id`, `due_date`, `blocked_reason`, `note`, `changed_by_user_id` |
 | POST | `/trial-sites/{id}/dependencies` | Add a dependency. **409** for `dependency_cycle`, `cross_trial_site`, or `duplicate_dependency` | body: `predecessor_id`, `successor_id` |
 | DELETE | `/dependencies/{id}` | Remove a dependency (204) | — |
-| GET | `/templates` | Default milestone checklist with predecessor codes | — |
+| GET | `/templates` | Milestone checklist for `?trial_type=drug\|device\|no_product` (default `drug`) with predecessor codes | — |
 | GET | `/users` | Milestone owners | `site_id`, `role`, `sponsor_only` |
 | POST | `/assistant/ask` | **Ask TrialFlow:** Claude answers a question about the caller's trial sites using read-only tools. Never changes data. **503** `assistant_unavailable` when `ANTHROPIC_API_KEY` is unset or the model call fails, times out (20s), or is declined | body: `question` (1-300 chars), `history` (≤10 `{role, text}` turns, oldest first), `role`, `site_id` |
 

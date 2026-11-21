@@ -85,6 +85,7 @@ def world(session):
         nct_id="NCT07578116",
         title="SWOG HER2+ metastatic",
         phases=["PHASE3"],
+        intervention_types=["BIOLOGICAL", "DRUG"],
         overall_status=RecruitmentStatus.RECRUITING,
         start_date=date(2027, 3, 9),
         source_type=SourceType.public_registry,

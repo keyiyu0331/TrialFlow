@@ -1,5 +1,14 @@
 /** Typed client for the TrialFlow API (see docs/api-design.md). */
 
+export type TrialType = "drug" | "device" | "no_product";
+
+/** What the trial ships to sites; it decides which milestones a trial site gets. */
+export const TRIAL_TYPE_LABEL: Record<TrialType, string> = {
+  drug: "Drug trial",
+  device: "Device trial",
+  no_product: "No study product",
+};
+
 export type SiteHealth = "activated" | "blocked" | "at_risk" | "on_track";
 export type DelayLevel = "on_time" | "1_7" | "8_30" | "over_30";
 export type MilestoneStatus = "not_started" | "in_progress" | "blocked" | "complete" | "not_applicable";
@@ -83,7 +92,7 @@ export interface Milestone {
 }
 
 export interface TrialSiteDetail extends TrialSiteSummary {
-  trial: { id: number; nct_id: string | null; title: string };
+  trial: { id: number; nct_id: string | null; title: string; trial_type: TrialType };
   selected_date: string | null;
   milestones: Milestone[];
 }
@@ -145,6 +154,7 @@ export interface TrialSummary {
   title: string;
   acronym: string | null;
   phases: string[];
+  trial_type: TrialType;
   sponsor_name: string | null;
   overall_status: string | null;
   site_count: number;

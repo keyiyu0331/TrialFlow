@@ -13,7 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models as m
-from ..enums import SourceType, UserRole, Workstream
+from ..enums import SourceType, TrialType, UserRole, Workstream
+from .trial_types import classify_trial_type
 
 
 @dataclass(frozen=True)
@@ -28,25 +29,44 @@ class TemplateSpec:
     is_gate: bool = False
 
 
-_PARALLEL = (
-    "IRB_APPROVAL",
-    "CONTRACT_EXECUTED",
-    "BUDGET_FINALIZED",
-    "REGULATORY_DOCS",
-    "STAFF_TRAINING",
-    "PHARMACY_SETUP",
-    "LAB_SYSTEMS_ACCESS",
-    "DRUG_SHIPMENT",
-)
+def _gates(parallel: tuple[str, ...]) -> tuple[TemplateSpec, ...]:
+    """The two gate milestones every type ends with: SIV needs every other step, then green light."""
+    return (
+        TemplateSpec(
+            "SIV",
+            "Site initiation visit",
+            Workstream.activation,
+            UserRole.cra,
+            7,
+            90,
+            predecessors=parallel,
+            is_gate=True,
+        ),
+        TemplateSpec(
+            "GREEN_LIGHT",
+            "Green light",
+            Workstream.activation,
+            UserRole.startup_manager,
+            3,
+            100,
+            predecessors=("SIV",),
+            is_gate=True,
+        ),
+    )
 
-DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
+
+# Steps every trial site needs, whatever the trial ships.
+_COMMON: tuple[TemplateSpec, ...] = (
     TemplateSpec("IRB_APPROVAL", "IRB approval", Workstream.regulatory, UserRole.regulatory, 45, 10),
     TemplateSpec("CONTRACT_EXECUTED", "Contract executed", Workstream.contracts, UserRole.contracts, 60, 20),
     TemplateSpec("BUDGET_FINALIZED", "Budget finalized", Workstream.contracts, UserRole.contracts, 45, 30),
     TemplateSpec("REGULATORY_DOCS", "Regulatory documents", Workstream.regulatory, UserRole.site_coordinator, 21, 40),
     TemplateSpec("STAFF_TRAINING", "Staff training", Workstream.training, UserRole.site_coordinator, 14, 50),
-    TemplateSpec("PHARMACY_SETUP", "Pharmacy setup", Workstream.pharmacy, UserRole.pharmacist, 21, 60),
     TemplateSpec("LAB_SYSTEMS_ACCESS", "Lab and systems access", Workstream.operations, UserRole.lab_manager, 21, 70),
+)
+
+_DRUG_ONLY: tuple[TemplateSpec, ...] = (
+    TemplateSpec("PHARMACY_SETUP", "Pharmacy setup", Workstream.pharmacy, UserRole.pharmacist, 21, 60),
     TemplateSpec(
         "DRUG_SHIPMENT",
         "Drug shipped and received",
@@ -56,26 +76,64 @@ DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
         80,
         predecessors=("IRB_APPROVAL", "PHARMACY_SETUP"),
     ),
+)
+
+# Devices skip the pharmacy. They need a biomedical safety check before shipment, and the
+# site staff can only be trained on the device once it has arrived. These durations are
+# synthetic assumptions: docs/site-activation-research.md benchmarks drug trials only.
+_DEVICE_ONLY: tuple[TemplateSpec, ...] = (
+    TemplateSpec("DEVICE_SAFETY_CHECK", "Device safety check", Workstream.operations, UserRole.lab_manager, 21, 65),
     TemplateSpec(
-        "SIV", "Site initiation visit", Workstream.activation, UserRole.cra, 7, 90, predecessors=_PARALLEL, is_gate=True
+        "DEVICE_SHIPMENT",
+        "Device shipped and received",
+        Workstream.operations,
+        UserRole.sponsor_supply,
+        14,
+        85,
+        predecessors=("IRB_APPROVAL", "DEVICE_SAFETY_CHECK"),
     ),
     TemplateSpec(
-        "GREEN_LIGHT",
-        "Green light",
-        Workstream.activation,
-        UserRole.startup_manager,
-        3,
-        100,
-        predecessors=("SIV",),
-        is_gate=True,
+        "DEVICE_TRAINING",
+        "Device operator training",
+        Workstream.training,
+        UserRole.site_coordinator,
+        10,
+        87,
+        predecessors=("DEVICE_SHIPMENT",),
     ),
 )
 
 
+def _checklist(extra: tuple[TemplateSpec, ...]) -> tuple[TemplateSpec, ...]:
+    steps = tuple(sorted((*_COMMON, *extra), key=lambda s: s.sort_order))
+    return (*steps, *_gates(tuple(s.code for s in steps)))
+
+
+# The checklist per trial type (rule D14). Creating a trial site copies its type's checklist.
+CHECKLISTS: dict[TrialType, tuple[TemplateSpec, ...]] = {
+    TrialType.drug: _checklist(_DRUG_ONLY),
+    TrialType.device: _checklist(_DEVICE_ONLY),
+    TrialType.no_product: _checklist(()),
+}
+DEFAULT_TEMPLATES = CHECKLISTS[TrialType.drug]  # the original ten-step drug checklist
+
+_ALL_SPECS: tuple[TemplateSpec, ...] = tuple(
+    {spec.code: spec for checklist in CHECKLISTS.values() for spec in checklist}.values()
+)
+
+
+def checklist_for(trial_type: TrialType) -> tuple[TemplateSpec, ...]:
+    return CHECKLISTS[trial_type]
+
+
 def ensure_templates(session: Session) -> dict[str, m.MilestoneTemplate]:
-    """Create any missing default templates and dependencies. Idempotent."""
+    """Create any missing templates (for every trial type) and dependencies. Idempotent.
+
+    SIV depends on a different set of steps in each type, so its template dependencies
+    are the union; instantiation uses the per-type checklist, not these rows.
+    """
     existing = {t.code: t for t in session.scalars(select(m.MilestoneTemplate))}
-    for spec in DEFAULT_TEMPLATES:
+    for spec in sorted(_ALL_SPECS, key=lambda s: s.sort_order):
         if spec.code in existing:
             continue
         existing[spec.code] = m.MilestoneTemplate(
@@ -91,11 +149,13 @@ def ensure_templates(session: Session) -> dict[str, m.MilestoneTemplate]:
     session.flush()
 
     have = {(d.predecessor_template_id, d.successor_template_id) for d in session.scalars(select(m.TemplateDependency))}
-    for spec in DEFAULT_TEMPLATES:
-        for pred_code in spec.predecessors:
-            pair = (existing[pred_code].id, existing[spec.code].id)
-            if pair not in have:
-                session.add(m.TemplateDependency(predecessor_template_id=pair[0], successor_template_id=pair[1]))
+    for checklist in CHECKLISTS.values():
+        for spec in checklist:
+            for pred_code in spec.predecessors:
+                pair = (existing[pred_code].id, existing[spec.code].id)
+                if pair not in have:
+                    session.add(m.TemplateDependency(predecessor_template_id=pair[0], successor_template_id=pair[1]))
+                    have.add(pair)
     session.flush()
     return existing
 
@@ -105,8 +165,11 @@ def instantiate_trial_site(
     trial_site: m.TrialSite,
     selected_date: date,
     owners_by_role: Mapping[UserRole, m.User] | None = None,
+    trial_type: TrialType | None = None,
 ) -> dict[str, m.Milestone]:
-    """Copy the templates into milestones for one trial site, in one transaction.
+    """Copy the trial type's checklist into milestones for one trial site, in one transaction.
+
+    ``trial_type`` defaults to the type derived from the trial's intervention types.
 
     Dates are a forward pass from ``selected_date``: a milestone starts when its
     last predecessor is due (or on the selected date) and is due after its default
@@ -117,7 +180,8 @@ def instantiate_trial_site(
         raise ValueError(f"trial site {trial_site.id} already has milestones")
 
     templates = ensure_templates(session)
-    specs = sorted(DEFAULT_TEMPLATES, key=lambda s: s.sort_order)
+    trial_type = trial_type or classify_trial_type(trial_site.trial.intervention_types)
+    specs = sorted(checklist_for(trial_type), key=lambda s: s.sort_order)
     milestones: dict[str, m.Milestone] = {}
     for spec in specs:  # predecessors always have a lower sort_order
         start = max((milestones[p].due_date for p in spec.predecessors), default=selected_date)

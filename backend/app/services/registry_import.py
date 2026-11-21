@@ -91,6 +91,8 @@ def import_registry(session: Session, studies: list[dict], retrieved_at: datetim
         trial.acronym = ident.get("acronym")
         trial.phases = list(design.get("phases", []))
         trial.study_type = design.get("studyType")
+        interventions = protocol.get("armsInterventionsModule", {}).get("interventions", [])
+        trial.intervention_types = sorted({i["type"] for i in interventions if i.get("type")})
         trial.sponsor_name = sponsor.get("name")
         trial.lead_sponsor_class = sponsor.get("class")
         trial.overall_status = _recruitment_status(status.get("overallStatus"))

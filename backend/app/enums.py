@@ -27,6 +27,17 @@ class RecruitmentStatus(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class TrialType(str, Enum):
+    """What a trial ships to sites. Derived from registry intervention types; never stored.
+
+    It decides which milestones a trial site gets (see services/templates.py).
+    """
+
+    drug = "drug"
+    device = "device"
+    no_product = "no_product"
+
+
 class ActivationStatus(str, Enum):
     selected = "selected"
     in_startup = "in_startup"

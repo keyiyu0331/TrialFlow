@@ -52,7 +52,7 @@ def test_openapi_lists_every_endpoint(client):
 
 def test_trial_list_counts_and_search(client):
     page = client.get("/trials?limit=500").json()
-    assert page["total"] == 25
+    assert page["total"] == 26  # 25 registry trials + the synthetic device trial
     swog = next(t for t in page["items"] if t["nct_id"] == SWOG)
     assert swog["activation_counts"]["in_startup"] == 11
     assert swog["activation_counts"]["activated"] == 1

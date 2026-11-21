@@ -1,0 +1,11 @@
+DEVICE SHIPMENT RECEIPT
+Study: TF-DEVICE-DEMO
+Shipped to: Summit Regional Hospital (synthetic)
+Courier: Example Courier    Shipment date: 2026-10-27
+Contents: 20 wearable ECG patches, 2 base stations, instructions for use
+Received by: Research coordinator on 2026-10-30
+Condition on arrival: Intact. Temperature log within the allowed range.
+
+Items to follow up: one base station shows a cracked case. The sponsor's supply team has been asked to send a replacement.
+
+SYNTHETIC SAMPLE DOCUMENT: made up for the TrialFlow demo. Not a real shipping record.

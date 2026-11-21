@@ -18,6 +18,7 @@ FastAPI, JSON. Interactive docs are at `/docs`. Stubs live in `backend/app/route
 | GET | `/templates` | Milestone checklist for `?trial_type=drug\|device\|no_product` (default `drug`) with predecessor codes | — |
 | GET | `/users` | Milestone owners | `site_id`, `role`, `sponsor_only` |
 | POST | `/assistant/ask` | **Ask TrialFlow:** Claude answers a question about the caller's trial sites using read-only tools. Never changes data. **503** `assistant_unavailable` when `ANTHROPIC_API_KEY` is unset or the model call fails, times out (20s), or is declined | body: `question` (1-300 chars), `history` (≤10 `{role, text}` turns, oldest first), `role`, `site_id` |
+| POST | `/assistant/document` | **Document upload in the chat:** summarize and categorize one IRB letter, contract, budget, training log or similar. Body is the raw file bytes (PDF, .txt, .md; at most 2 MB), with `?filename=` required. Uses Claude when configured and a rule-based analyzer otherwise or on any model failure. Never changes data and never stores the file. **413** `file_too_large`, **415** `unsupported_file_type`, **422** `empty_file`, `unreadable_pdf`, `no_text` (scanned PDF) | query: `filename` |
 
 \* can be repeated, e.g. `?delay_level=8_30&delay_level=over_30`.
 
@@ -114,6 +115,23 @@ returns the same shape as the frontend's rule-based answer:
 - **Tools** (read-only, scoped): `portfolio_summary`, `list_trial_sites`, `get_trial_site`, `open_tasks`. They return owner name and role only, never emails, and remove email addresses and phone numbers from free text (`blocked_reason`, `notes`) before it reaches the model.
 - **Links** are built by the backend from trial site ids the tools returned; ids the model makes up are dropped.
 - **Model:** `claude-opus-5-5` at effort `low` (override with `TRIALFLOW_ASSISTANT_MODEL`), up to 6 model calls per question.
+
+### 5. `POST /assistant/document`
+
+Raw file bytes in the body, `?filename=irb_approval_letter.pdf`. Returns:
+```json
+{"filename": "irb_approval_letter.pdf", "category": "irb_approval", "category_label": "IRB approval",
+ "related_milestone": "IRB approval", "title": "IRB approval letter, protocol v2.1",
+ "summary": "The IRB approved protocol v2.1 after full board review. ...",
+ "key_facts": [{"label": "Approval date", "value": "2026-10-12", "quote": "Approval date: 2026-10-12"}],
+ "source": "claude", "truncated": false}
+```
+- **Categories:** `irb_approval`, `contract`, `budget`, `regulatory_docs`, `training_record`, `pharmacy`, `shipment`, `other`. `related_milestone` is the milestone the document usually evidences; it is a hint, not a link to any trial site.
+- **Suggestion only:** the endpoint reads nothing from the database and writes nothing. Applying what a document says is still a person updating a milestone.
+- **Checked facts:** a `key_fact` is kept only if its `quote` appears in the document, which drops invented details.
+- **Privacy:** text goes through `redact()` (emails and phone numbers removed) before it reaches Claude; the model has no tools, and the document is treated as data, not instructions. Text is cut at 20,000 characters (`truncated: true`).
+- **Fallback:** with no API key, or on any error, refusal, or unusable output, `source` is `rule_based` (keyword category, the start of the document as the summary, any dates found).
+- Synthetic sample files to try it with are in `data/sample_documents/`.
 
 ## Not yet implemented
 Authentication (none in the MVP; `changed_by_user_id` is passed in the body, and `/assistant/ask` trusts the `role`/`site_id` the frontend sends).

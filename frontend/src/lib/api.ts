@@ -272,3 +272,16 @@ export async function getTrackedWorld() {
     }),
   );
 }
+
+/** A summary and category for an uploaded site document. A suggestion: nothing is changed. */
+export interface DocumentAnalysis {
+  filename: string;
+  category: string;
+  category_label: string;
+  related_milestone: string | null;
+  title: string;
+  summary: string;
+  key_facts: { label: string; value: string; quote: string }[];
+  source: "claude" | "rule_based";
+  truncated: boolean;
+}

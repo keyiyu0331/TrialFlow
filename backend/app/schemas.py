@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .enums import (
     ActivationStatus,
     DelayLevel,
+    DocumentCategory,
     EventType,
     MilestoneStatus,
     RecruitmentStatus,
@@ -357,3 +358,26 @@ class AskAnswer(BaseModel):
     links: list[AskLink] = Field(description="Only trial sites the assistant actually looked up")
     follow: list[str] = Field(default_factory=list, description="Suggested follow-up questions")
     source: Literal["claude"] = "claude"
+
+
+# ---------- Document upload (Ask TrialFlow) ----------
+
+
+class DocumentFact(BaseModel):
+    label: str = Field(description="e.g. Approval date")
+    value: str
+    quote: str = Field(description="The exact words in the document that say it, so a person can check")
+
+
+class DocumentAnalysis(BaseModel):
+    """A summary and category for one uploaded document. A suggestion: nothing is changed."""
+
+    filename: str
+    category: DocumentCategory
+    category_label: str
+    related_milestone: str | None = Field(description="The milestone this document usually evidences, if any")
+    title: str
+    summary: str
+    key_facts: list[DocumentFact]
+    source: Literal["claude", "rule_based"] = Field(description="Which analyzer produced this")
+    truncated: bool = Field(description="True if only the start of a long document was read")

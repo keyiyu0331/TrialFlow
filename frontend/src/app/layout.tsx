@@ -52,8 +52,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <strong>TrialFlow</strong> · CS 146S class project. Proves the workflow, not a production system.
               </div>
               <div>
-                Trials and sites: real, from ClinicalTrials.gov. Milestones, owners, dates and history: synthetic,
-                generated for the demo.
+                Trials and sites: real, from ClinicalTrials.gov (plus one labeled synthetic device trial). Milestones,
+                owners, dates and history: synthetic, generated for the demo.
               </div>
             </footer>
           </div>

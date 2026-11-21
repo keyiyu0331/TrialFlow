@@ -1,0 +1,16 @@
+CLINICAL TRIAL AGREEMENT: SUMMARY OF TERMS AND EXECUTION STATUS
+
+Between: Example Medical Devices (synthetic), the Sponsor
+And: Lakeshore University Hospital (synthetic), the Institution
+Study: TF-DEVICE-DEMO
+
+Status: Not yet executed. Legal review is still open on two points.
+
+Open item 1: Indemnification. The Institution asks that the Sponsor's indemnification cover injuries caused by the study device. The Sponsor has offered language limited to injuries caused by the Sponsor's negligence. The parties have not agreed.
+Open item 2: Publication rights. The Institution requires the right to publish results after 12 months. The Sponsor proposes 18 months.
+
+Agreed terms: Payment per the attached budget, with invoices every quarter. Study duration of 24 months. Governing law of the State of Illinois.
+
+Last redline exchanged: November 4, 2026. The Institution's contracts office will respond by 2026-11-20.
+
+SYNTHETIC SAMPLE DOCUMENT: made up for the TrialFlow demo. Not a real contract.

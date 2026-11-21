@@ -276,3 +276,20 @@ def test_chunked_oversized_upload_is_cut_off(client):
 def test_a_corrupt_pdf_over_http_is_422(client):
     r = post(client, "bad.pdf", b"%PDF-1.7\n1 0 obj << /Type /Pages /Kids [ 1 0 R ] >> endobj")
     assert r.status_code == 422 and r.json()["code"] in ("unreadable_pdf", "no_text")
+
+
+def test_explicit_labels_keep_their_distinguishing_words():
+    text = "Initial IRB approval date: 2026-01-05\nFinal IRB approval date: 2026-03-01"
+    labels = [f.label for f in documents.rule_based_analysis("a.txt", text, False).key_facts]
+    assert labels == ["Initial IRB approval date", "Final IRB approval date"]
+
+
+def test_each_quote_contains_its_own_date_on_a_long_line():
+    line = "Review date: 2026-11-04. " + "The parties discussed indemnification at length. " * 5
+    line += "Response deadline: 2026-11-20."
+    assert len(line) > 200
+    facts = documents.rule_based_analysis("a.txt", f"Contract notes\n{line}", False).key_facts
+    assert [f.value for f in facts] == ["2026-11-04", "2026-11-20"]
+    for f in facts:
+        assert f.value in f.quote and len(f.quote) <= documents.QUOTE_CHARS
+    assert "Response deadline" in facts[1].quote

@@ -56,10 +56,16 @@ export default function AskTrialFlow() {
     const question = text.trim();
     if (!question || busy) return;
     // The conversation so far (before this question), so follow-ups like "who owns that?" have context.
-    const history = msgs.slice(-HISTORY).map((m) => ({
-      role: m.from === "you" ? "user" : "assistant",
-      text: m.doc ? docContext(m.doc) : m.text,
-    }));
+    const history = msgs.slice(-HISTORY).map((m) => ({ role: m.from === "you" ? "user" : "assistant", text: m.text }));
+    // The latest uploaded document goes in its own field, so both answer paths can use it for follow-ups.
+    const doc = msgs.findLast((m) => m.doc)?.doc;
+    const document = doc && {
+      filename: doc.filename,
+      category_label: doc.category_label,
+      title: doc.title,
+      summary: doc.summary,
+      key_facts: doc.key_facts,
+    };
     setQ("");
     setMsgs((m) => [...m, { from: "you", text: question }]);
     setBusy(true);
@@ -67,7 +73,7 @@ export default function AskTrialFlow() {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, history }),
+        body: JSON.stringify({ question, history, document }),
       });
       const a: Answer = await res.json();
       setMsgs((m) => [...m, { from: "tf", text: a.text, links: a.links, follow: a.follow }]);
@@ -205,13 +211,6 @@ export default function AskTrialFlow() {
       </form>
     </section>
   );
-}
-
-/** The uploaded document as text for the chat history, so follow-up questions can refer to it. */
-function docContext(doc: DocumentAnalysis): string {
-  const facts = doc.key_facts.map((f) => `${f.label}: ${f.value}`).join("; ");
-  const text = `Uploaded document "${doc.filename}" (${doc.category_label}): ${doc.title}. ${doc.summary}${facts ? ` Key facts: ${facts}.` : ""}`;
-  return text.slice(0, 3900);
 }
 
 /** What the assistant found in an uploaded document. Suggestion only. */

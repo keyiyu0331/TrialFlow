@@ -1,5 +1,5 @@
 import { ApiUnreachable, getTrackedWorld, SERVER_API } from "@/lib/api";
-import { type Answer, answer } from "@/lib/ask";
+import { type Answer, type AskDocument, answer, documentAnswer } from "@/lib/ask";
 import { getSession } from "@/lib/session";
 import type { SessionUser } from "@/lib/session-token";
 import { isSponsor } from "@/lib/session-token";
@@ -24,13 +24,40 @@ function cleanHistory(raw: unknown): Turn[] {
     .map((t) => ({ role: t.role, text: String(t.text).slice(0, 4000) }));
 }
 
+const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+
+/** The uploaded document from the chat, cut to the backend's limits (AskDocument in schemas.py); null if absent. */
+function cleanDocument(raw: unknown): AskDocument | null {
+  if (!raw || typeof raw !== "object") return null;
+  const d = raw as Record<string, unknown>;
+  const filename = str(d.filename, 200);
+  if (!filename) return null;
+  const facts = Array.isArray(d.key_facts) ? d.key_facts : [];
+  return {
+    filename,
+    category_label: str(d.category_label, 100),
+    title: str(d.title, 200),
+    summary: str(d.summary, 1000),
+    key_facts: facts
+      .filter((f) => f && typeof f === "object")
+      .slice(0, 6)
+      .map((f) => ({ label: str(f.label, 100), value: str(f.value, 100), quote: str(f.quote, 300) }))
+      .filter((f) => f.label && f.value),
+  };
+}
+
 /** Claude via the FastAPI assistant. Null when it is not configured, fails, or times out. */
-async function askClaude(user: SessionUser, question: string, history: Turn[]): Promise<Answer | null> {
+async function askClaude(
+  user: SessionUser,
+  question: string,
+  history: Turn[],
+  document: AskDocument | null,
+): Promise<Answer | null> {
   try {
     const res = await fetch(`${SERVER_API}/assistant/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, history, role: user.role, site_id: user.siteId }),
+      body: JSON.stringify({ question, history, document, role: user.role, site_id: user.siteId }),
       cache: "no-store",
       signal: AbortSignal.timeout(CLAUDE_TIMEOUT_MS),
     });
@@ -51,19 +78,18 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const question = typeof body.question === "string" ? body.question.trim().slice(0, MAX_QUESTION) : "";
 
+  const document = cleanDocument(body.document);
+
   if (question) {
-    const claude = await askClaude(user, question, cleanHistory(body.history));
+    const claude = await askClaude(user, question, cleanHistory(body.history), document);
     if (claude) return Response.json(claude);
   }
 
   try {
     const world = await getTrackedWorld();
-    return Response.json(
-      answer(
-        question,
-        world.flatMap((w) => w.details).filter((d) => isSponsor(user.role) || d.site.id === user.siteId),
-      ),
-    );
+    const details = world.flatMap((w) => w.details).filter((d) => isSponsor(user.role) || d.site.id === user.siteId);
+    const fromDocument = document && question ? documentAnswer(question, document, details) : null;
+    return Response.json(fromDocument ?? answer(question, details));
   } catch (e) {
     const msg =
       e instanceof ApiUnreachable

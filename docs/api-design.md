@@ -17,7 +17,7 @@ FastAPI, JSON. Interactive docs are at `/docs`. Stubs live in `backend/app/route
 | DELETE | `/dependencies/{id}` | Remove a dependency (204) | — |
 | GET | `/templates` | Milestone checklist for `?trial_type=drug\|device\|no_product` (default `drug`) with predecessor codes | — |
 | GET | `/users` | Milestone owners | `site_id`, `role`, `sponsor_only` |
-| POST | `/assistant/ask` | **Ask TrialFlow:** Claude answers a question about the caller's trial sites using read-only tools. Never changes data. **503** `assistant_unavailable` when `ANTHROPIC_API_KEY` is unset or the model call fails, times out (20s), or is declined | body: `question` (1-300 chars), `history` (≤10 `{role, text}` turns, oldest first), `role`, `site_id` |
+| POST | `/assistant/ask` | **Ask TrialFlow:** Claude answers a question about the caller's trial sites using read-only tools. Never changes data. **503** `assistant_unavailable` when `ANTHROPIC_API_KEY` is unset or the model call fails, times out (20s), or is declined | body: `question` (1-300 chars), `history` (≤10 `{role, text}` turns, oldest first), optional `document` (the last upload in the chat), `role`, `site_id` |
 | POST | `/assistant/document` | **Document upload in the chat:** summarize and categorize one IRB letter, contract, budget, training log or similar. Body is the raw file bytes (PDF, .txt, .md; at most 2 MB), with `?filename=` required. Uses Claude when configured and a rule-based analyzer otherwise or on any model failure. Never changes data and never stores the file. **413** `file_too_large` (refused from `Content-Length`, or as soon as the streamed body passes 2 MB), **415** `unsupported_file_type`, **422** `empty_file`, `unreadable_pdf` (any parser error), `unsupported_encoding` (text that is not UTF-8 or UTF-16), `no_text` (scanned PDF) | query: `filename` |
 
 \* can be repeated, e.g. `?delay_level=8_30&delay_level=over_30`.
@@ -114,6 +114,7 @@ returns the same shape as the frontend's rule-based answer:
 - **Scope:** `role` and `site_id` come from the frontend session. Sponsor/CRO roles (`startup_manager`, `cra`, `sponsor_supply`) see every tracked trial site; other roles see only trial sites at their `site_id` (none without one). The API trusts these fields because it has no authentication (see below).
 - **Tools** (read-only, scoped): `portfolio_summary`, `list_trial_sites`, `get_trial_site`, `open_tasks`. They return owner name and role only, never emails, and remove email addresses and phone numbers from free text (`blocked_reason`, `notes`) before it reaches the model.
 - **Links** are built by the backend from trial site ids the tools returned; ids the model makes up are dropped.
+- **Uploaded document:** optional `document` `{filename, category_label, title, summary, key_facts: [{label, value, quote}] (≤6)}`, the `/assistant/document` result for the chat's latest upload. It reaches the model redacted, inside `<uploaded_document>`, as untrusted data: the model may answer questions about the document from it but never treats it as site status. Without a key, the frontend fallback (`documentAnswer` in `src/lib/ask.ts`) answers from its key facts, or says it can't when no fact matches.
 - **Model:** `claude-opus-5-5` at effort `low` (override with `TRIALFLOW_ASSISTANT_MODEL`), up to 6 model calls per question.
 
 ### 5. `POST /assistant/document`

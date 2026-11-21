@@ -38,7 +38,7 @@ def ask(
         raise _unavailable("The assistant is not configured (ANTHROPIC_API_KEY is not set)")
     world = load_world(session, Scope(body.role, body.site_id), today, datetime.now(UTC))
     try:
-        return assistant.ask(client, body.question, body.history, world, today)
+        return assistant.ask(client, body.question, body.history, world, today, body.document)
     except assistant.AssistantUnavailable as e:
         raise _unavailable(str(e)) from e
 

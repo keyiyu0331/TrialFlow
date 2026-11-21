@@ -155,14 +155,7 @@ export function answer(question: string, details: TrialSiteDetail[]): Answer {
   const words = tokens(q).filter((w) => !STOP.has(w));
 
   // A specific site: "what's holding up Oxford?"
-  const scored = sites
-    .map((s) => {
-      const hay = new Set(tokens(`${s.site.name} ${s.site.city ?? ""} ${s.site.state ?? ""}`));
-      return { s, score: words.filter((w) => hay.has(w)).length };
-    })
-    .filter((x) => x.score > 0);
-  const best = Math.max(0, ...scored.map((x) => x.score));
-  const matched = scored.filter((x) => x.score === best).map((x) => x.s);
+  const matched = matchSites(words, sites);
   if (matched.length === 1) return siteStory(matched[0], tasks);
   if (matched.length > 1 && matched.length <= 8) {
     return {
@@ -308,6 +301,66 @@ export function answer(question: string, details: TrialSiteDetail[]): Answer {
       "Which sites will miss their target?",
       "Give me a summary",
     ],
+  };
+}
+
+/** The sites whose name or city best matches the question's words (none if nothing matches). */
+function matchSites(words: string[], sites: TrialSiteDetail[]): TrialSiteDetail[] {
+  const scored = sites
+    .map((s) => {
+      const hay = new Set(tokens(`${s.site.name} ${s.site.city ?? ""} ${s.site.state ?? ""}`));
+      return { s, score: words.filter((w) => hay.has(w)).length };
+    })
+    .filter((x) => x.score > 0);
+  const best = Math.max(0, ...scored.map((x) => x.score));
+  return scored.filter((x) => x.score === best).map((x) => x.s);
+}
+
+/** The document uploaded earlier in the chat, sent back with follow-up questions (AskDocument in schemas.py). */
+export interface AskDocument {
+  filename: string;
+  category_label: string;
+  title: string;
+  summary: string;
+  key_facts: { label: string; value: string; quote: string }[];
+}
+
+const DOC_WORDS = /\b(document|doc|file|letter|upload(ed)?|attach(ed|ment)?|receipt|log|agreement|certificate)\b/;
+const GENERIC = new Set(["date", "dates", "mentioned"]);
+/** Crude stem so "expire" matches "Approval expires" and "approved" matches "Approval date". */
+const stem = (w: string) => w.slice(0, 5);
+
+/**
+ * A follow-up about the uploaded document, answered from its key facts, or null when the question is not
+ * about the document (then the caller answers from site data). The document is what the user uploaded:
+ * the answer says so and never treats it as site status.
+ */
+export function documentAnswer(question: string, doc: AskDocument, details: TrialSiteDetail[]): Answer | null {
+  const q = question.toLowerCase().trim();
+  const words = tokens(q).filter((w) => !STOP.has(w) && !GENERIC.has(w));
+  const stems = new Set(words.map(stem));
+  const scored = doc.key_facts
+    .map((f) => ({ f, score: tokens(f.label).filter((w) => !GENERIC.has(w) && stems.has(stem(w))).length }))
+    .filter((x) => x.score > 0);
+  const aboutDoc = DOC_WORDS.test(q);
+  // A question that names a site ("when does IRB approval expire at Oxford?") is about the site, not the upload.
+  if (!aboutDoc && (scored.length === 0 || matchSites(words, details).length > 0)) return null;
+
+  const from = `From the uploaded document ${doc.filename}`;
+  const follow = ["What should I chase today?", "Which sites are blocked?"];
+  if (scored.length > 0) {
+    const best = Math.max(...scored.map((x) => x.score));
+    const top = scored.filter((x) => x.score === best).map((x) => x.f);
+    const quote = top[0].quote ? ` It says: "${top[0].quote}"` : "";
+    return { text: `${from}: ${top.map((f) => `${f.label}: ${f.value}`).join("; ")}.${quote}`, links: [], follow };
+  }
+  const facts = doc.key_facts.map((f) => `${f.label}: ${f.value}`).join("; ");
+  return {
+    text:
+      `I can't answer that from ${doc.filename} without the AI assistant; I only have its summary. ` +
+      `${doc.summary}${facts ? ` Key facts: ${facts}.` : ""}`,
+    links: [],
+    follow,
   };
 }
 

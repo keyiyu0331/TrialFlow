@@ -211,13 +211,30 @@ def _date_label(before: str) -> str:
     """
     field = re.split(r"\s{2,}|\t|[;|]", before.strip())[-1].strip(" -\u2013,")
     if field.endswith(":"):
-        field = field[:-1]
-    elif ":" in field:
+        # An explicit "Label:" is kept whole, so "Final IRB approval date" stays distinct from "Initial ...".
+        label = " ".join(field[:-1].strip(" -\u2013,").split())
+        return label if 0 < len(label) <= 50 else "Date mentioned"
+    if ":" in field:
         field = field.rsplit(":", 1)[1].strip()
         if len(field.split()) > 2:  # unclear where the label starts
             return "Date mentioned"
     label = " ".join(field.strip(" :-\u2013,").split()[-3:])
     return label if 0 < len(label) <= 50 else "Date mentioned"
+
+
+QUOTE_CHARS = 200
+
+
+def _quote(line: str, segment_start: int, match: re.Match) -> str:
+    """The evidence for one date: the whole line if it is short, else a slice that contains this date.
+
+    The slice starts where this date's field starts (after the previous date) when that fits, so the
+    label stays visible, and never runs past QUOTE_CHARS.
+    """
+    if len(line.strip()) <= QUOTE_CHARS:
+        return line.strip()
+    start = max(segment_start, match.start() - (QUOTE_CHARS - (match.end() - match.start()) - 20))
+    return line[start : start + QUOTE_CHARS].strip()
 
 
 def rule_based_analysis(filename: str, text: str, truncated: bool) -> s.DocumentAnalysis:
@@ -235,8 +252,9 @@ def rule_based_analysis(filename: str, text: str, truncated: bool) -> s.Document
             if len(facts) >= MAX_FACTS:
                 break
             label = _date_label(line[previous_end : match.start()])
+            quote = _quote(line, previous_end, match)
             previous_end = match.end()
-            facts.append(s.DocumentFact(label=label, value=match.group(1), quote=line.strip()[:200]))
+            facts.append(s.DocumentFact(label=label, value=match.group(1), quote=quote))
     return s.DocumentAnalysis(
         filename=filename,
         category=category,

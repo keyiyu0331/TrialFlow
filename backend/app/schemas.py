@@ -337,11 +337,36 @@ class AskTurn(BaseModel):
     text: str = Field(max_length=4000)
 
 
+class AskDocumentFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(max_length=100)
+    value: str = Field(max_length=100)
+    quote: str = Field(default="", max_length=300)
+
+
+class AskDocument(BaseModel):
+    """The last document the user uploaded in this chat, as POST /assistant/document described it.
+
+    Sent back by the frontend so follow-up questions ("when does this approval expire?") can be
+    answered from it. User-supplied and untrusted: data for the model, never instructions or site status.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    filename: str = Field(max_length=200)
+    category_label: str = Field(default="", max_length=100)
+    title: str = Field(default="", max_length=200)
+    summary: str = Field(default="", max_length=1000)
+    key_facts: list[AskDocumentFact] = Field(default_factory=list, max_length=6)
+
+
 class AskRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     question: str = Field(min_length=1, max_length=300)
     history: list[AskTurn] = Field(default_factory=list, max_length=10, description="Last turns, oldest first")
+    document: AskDocument | None = Field(default=None, description="The document uploaded earlier in this chat")
     role: UserRole = Field(description="Caller's role, from the frontend session (the API has no auth)")
     site_id: int | None = Field(default=None, description="Caller's site; scopes answers for site staff")
 

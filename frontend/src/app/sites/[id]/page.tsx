@@ -5,7 +5,7 @@ import DependencyGraph from "@/components/DependencyGraph";
 import History from "@/components/History";
 import MilestoneList from "@/components/MilestoneList";
 import Timeline from "@/components/Timeline";
-import { ApiError, ApiUnreachable, getEvents, getGraph, getSite } from "@/lib/api";
+import { ApiError, ApiUnreachable, getEvents, getGraph, getSite, TRIAL_TYPE_LABEL } from "@/lib/api";
 import { fmtDate, location, plural, roleLabel } from "@/lib/format";
 import { getSession } from "@/lib/session";
 import { isSponsor } from "@/lib/session-token";
@@ -56,9 +56,12 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
           <div className="detail-head__chips">
             <HealthChip health={site.health} />
             {site.delay_level !== "on_time" && <DelayChip level={site.delay_level} />}
+            <span className="tag">{TRIAL_TYPE_LABEL[site.trial.trial_type]}</span>
           </div>
           <p className="data-note" style={{ marginTop: 14, marginBottom: 0 }}>
-            Real registry site. Milestones, owners and dates are synthetic demo data.
+            {site.site.source_type === "public_registry"
+              ? "Real registry site. Milestones, owners and dates are synthetic demo data."
+              : "Synthetic demo site in a synthetic demo trial. Everything on this page is made up."}
           </p>
         </div>
       </div>

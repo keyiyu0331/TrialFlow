@@ -1,0 +1,19 @@
+Northbridge Medical Center (synthetic)
+Institutional Review Board
+
+IRB APPROVAL LETTER
+
+Protocol: TF-DEVICE-DEMO, Wearable ECG patch for cardiac monitoring during breast cancer treatment
+Protocol version: 2.1
+Principal Investigator: Dr. A. Example
+Review type: Full board review
+
+The Institutional Review Board reviewed the above protocol and informed consent form at its meeting on October 6, 2026. The IRB approved the study with minor modifications, which the study team has since addressed.
+
+Approval date: 2026-10-12
+Approval expires: 2027-10-11
+Approved documents: Protocol v2.1, Informed Consent Form v2.0, Recruitment flyer v1.0
+
+Continuing review is required before the expiration date. Any change to the protocol must be approved by the IRB before it is carried out. Serious adverse events must be reported within 5 business days.
+
+SYNTHETIC SAMPLE DOCUMENT: made up for the TrialFlow demo. Not a real letter.

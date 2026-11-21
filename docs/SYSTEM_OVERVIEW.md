@@ -32,7 +32,7 @@ flowchart LR
 - **Frontend:** shows data and sends user changes. Pages fetch on the server (`API_URL`); milestone updates go from the browser (`NEXT_PUBLIC_API_URL`). `src/lib/insights.ts` derives My tasks and trial summaries from existing endpoints; it adds no business rules.
 - **Backend:** validates every request, enforces the rules, and computes readiness, delays, blockers, and next-action owners on each request.
 - **Database:** stores facts only (statuses, dates, owners, history), never computed values.
-- **Assistant:** the Ask TrialFlow chat calls `POST /assistant/ask`; the backend runs Claude with read-only tools over the caller's trial sites and returns a suggested answer, never a status change. Without `ANTHROPIC_API_KEY` (or on any model failure) the frontend falls back to the rule-based `src/lib/ask.ts`.
+- **Assistant:** the Ask TrialFlow chat can also summarize an uploaded document through `POST /assistant/document` (suggestion only, file not stored). The chat calls `POST /assistant/ask`; the backend runs Claude with read-only tools over the caller's trial sites and returns a suggested answer, never a status change. Without `ANTHROPIC_API_KEY` (or on any model failure) the frontend falls back to the rule-based `src/lib/ask.ts`.
 - **Scripts:** load the database before the app runs. The app never calls ClinicalTrials.gov while serving a request.
 
 ## 2. Backend file map
@@ -100,6 +100,7 @@ flowchart TD
 | `services/seeding.py` | Synthetic owners, milestones, and events for the scenario trial sites |
 | `services/tasks.py` | Pure functions: open tasks (blocked, overdue, due soon, ...), the Python port of `openTasks` in `frontend/src/lib/insights.ts` |
 | `services/assistant_tools.py` | `load_world()` applies the caller's scope once; the read-only tools Claude may call are pure functions over that list |
+| `services/documents.py` | Document upload: text extraction (PDF, .txt, .md), contact redaction, Claude summary and category with quote-checked facts, and the rule-based fallback; reads and writes nothing in the database |
 | `services/assistant.py` | The Claude tool loop: system prompt, structured answer, links only to trial sites the tools returned; raises `AssistantUnavailable` on any failure |
 | `schemas.py` | What goes over the wire: validates input, shapes output, generates `/docs` |
 | `models.py` | What is stored: tables and constraints (e.g. one row per trial and site pair) |

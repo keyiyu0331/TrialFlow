@@ -13,6 +13,7 @@ Verified against `data/raw_25_studies.json` (25 studies, 1,715 locations, pulled
 | `identificationModule.acronym` | `trials.acronym` | M | 6/25 present |
 | `designModule.phases` | `trials.phases` (JSON list) | A, M | 4 trials `["PHASE1","PHASE2"]`; 6 `["NA"]`; 3 absent (observational) → `[]` |
 | `designModule.studyType` | `trials.study_type` | | 22 INTERVENTIONAL, 3 OBSERVATIONAL |
+| `armsInterventionsModule.interventions[].type` | `trials.intervention_types` (JSON list, de-duplicated, sorted) | A | Input to the computed trial type (rule D14). Mostly DRUG/BIOLOGICAL; 4 DIAGNOSTIC_TEST (radiotracers), 2 BEHAVIORAL; **no DEVICE trial in the pull**; 2 trials have none (observational) |
 | `sponsorCollaboratorsModule.leadSponsor.name` | `trials.sponsor_name` | | 25/25 |
 | `sponsorCollaboratorsModule.leadSponsor.class` | `trials.lead_sponsor_class` | | INDUSTRY 9, OTHER 9, NIH 4, OTHER_GOV 2, NETWORK 1 |
 | `statusModule.overallStatus` | `trials.overall_status` | U | **All 25 are RECRUITING**, even though the query also asked for NOT_YET_RECRUITING |

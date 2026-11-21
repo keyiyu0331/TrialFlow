@@ -59,6 +59,8 @@ Readiness % and Ready stay as defined in `schema.md`.
 
 Sorted by kind in that order, then most days overdue, then soonest due. *Urgent* = blocked, overdue, or due soon. Implemented twice and kept in step: `frontend/src/lib/insights.ts` (`openTasks`) and `backend/app/services/tasks.py`; change both together.
 
+**D14. Trial type** (decides which checklist a trial site gets). Computed from `trials.intervention_types`, never stored. Drug if any of DRUG, BIOLOGICAL, DIETARY_SUPPLEMENT, GENETIC, COMBINATION_PRODUCT, DIAGNOSTIC_TEST (registry diagnostic tests here are radiotracers, which the site pharmacy handles); else device if DEVICE; else no product (behavioral, procedure, radiation only, observational, none). A trial with both a drug and a device is a drug trial. Drug adds PHARMACY_SETUP and DRUG_SHIPMENT; device adds DEVICE_SAFETY_CHECK, DEVICE_SHIPMENT (after IRB_APPROVAL and the safety check) and DEVICE_TRAINING (after the shipment); no product adds nothing. SIV depends on every other non-gate step of the checklist. The registry pull has no device trial, so the device demo is a labeled synthetic trial (`TF-DEVICE-DEMO`) at fictional sites.
+
 ## Required tests
 
 Derive them from the rules above, not from the implementation. Fixtures should use the default template from `schema.md`.
@@ -74,6 +76,7 @@ Derive them from the rules above, not from the implementation. Fixtures should u
 9. Activated trial site: health is `activated`, top blocker is null.
 10. Dependency cycle is rejected with 409 `dependency_cycle` (already in `schema.md`).
 11. Open tasks (D13): kind precedence, `due_soon` only for in-progress or Ready milestones, and sort order (`tests/test_tasks.py`).
+12. Trial type (D14): classification of each intervention mix, one checklist per type, device dates and dependency counts, and a scenario for the wrong type is refused (`tests/test_trial_types.py`).
 
 ## Open questions
 

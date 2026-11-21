@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ApiUnreachable, getTrials } from "@/lib/api";
+import { ApiUnreachable, getTrials, TRIAL_TYPE_LABEL } from "@/lib/api";
 
 export const metadata = { title: "Trials · TrialFlow" };
 
@@ -30,8 +30,9 @@ export default async function Trials() {
           <div className="dh__eyebrow">Trials</div>
           <h1 className="dh__title">{active.length} trials we are tracking</h1>
           <p className="dh__sub">
-            All {items.length} are real recruiting trials from ClinicalTrials.gov. The ones below have demo start-up
-            data, so you can see how site activation is going.
+            {items.filter((t) => t.source_type === "public_registry").length} real trials from ClinicalTrials.gov, plus
+            one synthetic device trial (the registry pull has none). The ones below have demo start-up data, so you can
+            see how site activation is going. Drug, device and no-product trials each get their own milestones.
           </p>
         </div>
       </header>
@@ -39,7 +40,9 @@ export default async function Trials() {
       <div className="trials">
         {active.map((t) => (
           <Link key={t.id} href={`/?trial=${t.id}`} className="card trial-card">
-            <span className="label">{t.nct_id}</span>
+            <span className="label">
+              {t.nct_id ?? "Synthetic demo trial"} · {TRIAL_TYPE_LABEL[t.trial_type]}
+            </span>
             <div className="trial-card__title">{t.title}</div>
             <div className="trial-card__foot">
               <span>{t.sponsor_name ?? "Sponsor not listed"}</span>

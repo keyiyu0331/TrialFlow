@@ -281,3 +281,42 @@ def test_endpoint_validates_input(client):
     assert client.post("/assistant/ask", json={**BODY, "question": ""}).status_code == 422
     r = client.post("/assistant/ask", json={**BODY, "history": [{"role": "user", "text": "hi"}] * 11})
     assert r.status_code == 422 and r.json()["code"] == "validation_error"
+
+
+# ---------- Uploaded document context ----------
+
+DOC = {
+    "filename": "irb_approval_letter.txt",
+    "category_label": "IRB approval",
+    "title": "IRB approval letter",
+    "summary": "Approved. Questions to irb.office@example.org or +1 602 555 0142.",
+    "key_facts": [
+        {"label": "Approval expires", "value": "2027-10-11", "quote": "Approval expires: 2027-10-11"},
+    ],
+}
+
+
+def test_the_uploaded_document_reaches_the_model_redacted(world):
+    client = FakeClient(("end_turn", [final("It expires on 2027-10-11, per the uploaded letter.", [])]))
+    assistant.ask(client, "When does this approval expire?", [], world, AS_OF, s.AskDocument(**DOC))
+    last = client.calls[0]["messages"][-1]["content"]
+    assert "<uploaded_document>" in last and "2027-10-11" in last
+    assert last.endswith("When does this approval expire?")
+    assert "irb.office@example.org" not in last and "555 0142" not in last
+    assert "uploaded_document" in client.calls[0]["system"][0]["text"]  # the prompt says how to use it
+
+
+def test_without_a_document_there_is_no_document_block(world):
+    client = FakeClient(("end_turn", [final("Nothing.", [])]))
+    assistant.ask(client, "What's late?", [], world, AS_OF)
+    assert "<uploaded_document>" not in client.calls[0]["messages"][-1]["content"]
+
+
+def test_endpoint_accepts_a_document_and_validates_it(client):
+    fake = FakeClient(("end_turn", [final("2027-10-11.", [])]))
+    app.dependency_overrides[assistant.get_client] = lambda: fake
+    assert client.post("/assistant/ask", json={**BODY, "document": DOC}).status_code == 200
+    assert "<uploaded_document>" in fake.calls[0]["messages"][-1]["content"]
+    too_many = {**DOC, "key_facts": DOC["key_facts"] * 7}
+    assert client.post("/assistant/ask", json={**BODY, "document": too_many}).status_code == 422
+    assert client.post("/assistant/ask", json={**BODY, "document": {**DOC, "extra": 1}}).status_code == 422

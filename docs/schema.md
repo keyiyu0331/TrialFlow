@@ -26,9 +26,11 @@ Only the key columns are listed; `models.py` is the source of truth.
 
 **sites**: `dedup_key` (unique), `name`, `is_placeholder_name`, `city`, `state`, `zip`, `country`, `latitude`/`longitude` (city-level centroid, range-checked), `source_type`.
 
-**trial_sites**: `trial_id` FK, `site_id` FK, **UNIQUE(trial_id, site_id)**, `ctgov_location_index` (≥ 1), `reported_recruitment_status` (CT.gov enum), `activation_status` (`selected | in_startup | activated | on_hold | dropped`), `selected_date`, `target_activation_date`, `actual_activation_date` (**CHECK** only set when activated), `scenario_label`, `source_type`.
+**trial_sites**: `trial_id` FK, `site_id` FK, **UNIQUE(trial_id, site_id)**, `ctgov_location_index` (≥ 1; NULL for the synthetic device trial's sites, which have no registry location), `reported_recruitment_status` (CT.gov enum), `activation_status` (`selected | in_startup | activated | on_hold | dropped`), `selected_date`, `target_activation_date`, `actual_activation_date` (**CHECK** only set when activated), `scenario_label`, `source_type`.
 
 **users**: `name`, `email` (unique), `role` (`startup_manager | cra | site_coordinator | regulatory | contracts | pharmacist | lab_manager | pi | sponsor_supply`), `site_id` FK (null for sponsor or CRO staff), `team_name` (set when the owner is a team).
+
+**trials** also has `intervention_types` (JSON list, from `armsInterventionsModule.interventions[].type`); the trial type (drug, device, no product) is computed from it (rule D14) and never stored.
 
 **milestone_templates**: `code` (unique), `name`, `workstream`, `default_owner_role`, `default_duration_days` (≥ 0), `is_gate`, `sort_order` (unique).
 
@@ -40,23 +42,28 @@ Only the key columns are listed; `models.py` is the source of truth.
 
 **milestone_events**: `milestone_id` FK, `changed_by_user_id` FK (null for system or seed changes), `event_type` (`status_change | owner_change | due_date_change | note`), `old_value`, `new_value`, `note`, `occurred_at`, `source_type`. **CHECK**: a change event must actually change the value.
 
-## Default template
-Ten milestones, as listed in the brief. Feasibility and selection happen before a trial site exists, so they are recorded as `trial_sites.selected_date` rather than as a milestone.
+## Checklists by trial type
+What a trial ships decides its milestones (rule D14). `milestone_templates` holds every template; each trial type uses its own checklist (`CHECKLISTS` in `services/templates.py`).
 
-| Code | Owner role | Days | Depends on |
-|---|---|---|---|
-| IRB_APPROVAL | regulatory | 45 | — |
-| CONTRACT_EXECUTED | contracts | 60 | — |
-| BUDGET_FINALIZED | contracts | 45 | — |
-| REGULATORY_DOCS | site_coordinator | 21 | — |
-| STAFF_TRAINING | site_coordinator | 14 | — |
-| PHARMACY_SETUP | pharmacist | 21 | — |
-| LAB_SYSTEMS_ACCESS | lab_manager | 21 | — |
-| DRUG_SHIPMENT | sponsor_supply | 14 | IRB_APPROVAL, PHARMACY_SETUP |
-| SIV (gate) | cra | 7 | all eight above |
-| GREEN_LIGHT (gate) | startup_manager | 3 | SIV |
+| Code | Owner role | Days | Depends on | Drug | Device | No product |
+|---|---|---|---|---|---|---|
+| IRB_APPROVAL | regulatory | 45 | — | ✓ | ✓ | ✓ |
+| CONTRACT_EXECUTED | contracts | 60 | — | ✓ | ✓ | ✓ |
+| BUDGET_FINALIZED | contracts | 45 | — | ✓ | ✓ | ✓ |
+| REGULATORY_DOCS | site_coordinator | 21 | — | ✓ | ✓ | ✓ |
+| STAFF_TRAINING | site_coordinator | 14 | — | ✓ | ✓ | ✓ |
+| PHARMACY_SETUP | pharmacist | 21 | — | ✓ | | |
+| DEVICE_SAFETY_CHECK | lab_manager | 21 | — | | ✓ | |
+| LAB_SYSTEMS_ACCESS | lab_manager | 21 | — | ✓ | ✓ | ✓ |
+| DRUG_SHIPMENT | sponsor_supply | 14 | IRB_APPROVAL, PHARMACY_SETUP | ✓ | | |
+| DEVICE_SHIPMENT | sponsor_supply | 14 | IRB_APPROVAL, DEVICE_SAFETY_CHECK | | ✓ | |
+| DEVICE_TRAINING | site_coordinator | 10 | DEVICE_SHIPMENT | | ✓ | |
+| SIV (gate) | cra | 7 | every other step in the checklist | ✓ (8) | ✓ (9) | ✓ (6) |
+| GREEN_LIGHT (gate) | startup_manager | 3 | SIV | ✓ | ✓ | ✓ |
 
-Durations are midpoints of the ranges in `docs/site-activation-research.md`. Whether DRUG_SHIPMENT also needs CONTRACT_EXECUTED is still an open question for a domain expert.
+The drug checklist (ten milestones) is the original default. Drug durations are midpoints of the ranges in `docs/site-activation-research.md`. That research covers drug trials only, so the three device milestones and their durations are synthetic assumptions. Whether DRUG_SHIPMENT also needs CONTRACT_EXECUTED is still an open question for a domain expert.
+
+`template_dependencies` stores the union of every type's edges (SIV depends on different steps in each type), so instantiation reads the per-type checklist in code, not those rows.
 
 ## Rules
 | Rule | Where enforced |
@@ -65,7 +72,7 @@ Durations are midpoints of the ranges in `docs/site-activation-research.md`. Whe
 | **Dependencies stay within one trial site** | **DB** (composite FKs), and the API returns 409 `cross_trial_site` |
 | No cycles | Service layer (reachability check before insert), API 409 `dependency_cycle`. A DB constraint cannot express this |
 | `not_applicable` satisfies successors | Service layer (`SATISFIED_STATUSES` in `enums.py`) |
-| Creating a trial site copies templates → milestones and template deps → milestone deps, with due dates from `default_duration_days` | Service layer (one transaction); UNIQUE(trial_site_id, template_id) prevents copying twice |
+| Creating a trial site copies its trial type's checklist → milestones and its template deps → milestone deps, with due dates from `default_duration_days` | Service layer (one transaction); UNIQUE(trial_site_id, template_id) prevents copying twice |
 | Every status, owner, or due-date change writes a `milestone_events` row and, for status changes, updates `status_changed_at` | Service layer (same transaction as the change) |
 | Completing GREEN_LIGHT sets `activation_status = activated` and `actual_activation_date` | Service layer; DB CHECK keeps the date consistent |
 | **Recruitment status ≠ activation** | Convention: `reported_recruitment_status` is display-only and never drives readiness |
@@ -81,3 +88,5 @@ Durations are midpoints of the ranges in `docs/site-activation-research.md`. Whe
 | Readiness % | (complete + not_applicable) ÷ all milestones × 100. This matches Samhita's "complete ÷ required" because not_applicable = not required |
 | Ready | All milestones satisfied and no unresolved blocker (Samhita's definition) |
 | Projected activation (stretch) | Longest remaining path to GREEN_LIGHT |
+
+**Upgrading an existing database:** `scripts/import_registry.py` and `scripts/seed.py` call `db.init_db`, which creates missing tables and adds `trials.intervention_types` (`JSON NOT NULL DEFAULT '[]'`) to an older `trials` table. Re-run the import to fill it for registry trials. No rebuild is needed.

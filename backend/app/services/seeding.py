@@ -23,14 +23,26 @@ from ..enums import (
     ActivationStatus,
     EventType,
     MilestoneStatus,
+    RecruitmentStatus,
     SiteHealth,
     SourceType,
+    TrialType,
     UserRole,
 )
-from .templates import DEFAULT_TEMPLATES, ensure_templates, instantiate_trial_site
+from .templates import checklist_for, ensure_templates, instantiate_trial_site
+from .trial_types import classify_trial_type
 
-# (NCT ID, number of trial sites to put into start-up). Both trials have many real, named US sites.
-SEED_TRIALS: tuple[tuple[str, int], ...] = (("NCT07578116", 12), ("NCT06312176", 6))
+# Real registry trials (NCT ID) and the synthetic device trial key, each with the number of
+# trial sites to put into start-up. The registry data has no device trial, so that one is a
+# labeled synthetic trial at synthetic sites (see SYNTHETIC_DEVICE_TRIAL).
+DEVICE_TRIAL_KEY = "TF-SYN-DEVICE-1"
+SEED_TRIALS: tuple[tuple[str, int], ...] = (
+    ("NCT07578116", 12),  # drug (phase 3)
+    ("NCT06312176", 6),  # drug (phase 3)
+    ("NCT06058377", 6),  # drug (phase 3, NCI, 500+ locations)
+    ("NCT05866458", 4),  # observational, ships nothing
+    (DEVICE_TRIAL_KEY, 6),  # synthetic device trial
+)
 
 C, P, NA = "complete", "in_progress", "na"
 
@@ -55,6 +67,29 @@ _EIGHT = (
 )
 _ALL_BUT = lambda *skip: _done(*(c for c in _EIGHT if c not in skip))  # noqa: E731
 
+_DEVICE_STEPS = (
+    "IRB_APPROVAL",
+    "CONTRACT_EXECUTED",
+    "BUDGET_FINALIZED",
+    "REGULATORY_DOCS",
+    "STAFF_TRAINING",
+    "DEVICE_SAFETY_CHECK",
+    "LAB_SYSTEMS_ACCESS",
+    "DEVICE_SHIPMENT",
+    "DEVICE_TRAINING",
+)
+_DEV_ALL_BUT = lambda *skip: _done(*(c for c in _DEVICE_STEPS if c not in skip))  # noqa: E731
+
+_PLAIN_STEPS = (
+    "IRB_APPROVAL",
+    "CONTRACT_EXECUTED",
+    "BUDGET_FINALIZED",
+    "REGULATORY_DOCS",
+    "STAFF_TRAINING",
+    "LAB_SYSTEMS_ACCESS",
+)
+_PLAIN_ALL_BUT = lambda *skip: _done(*(c for c in _PLAIN_STEPS if c not in skip))  # noqa: E731
+
 
 @dataclass(frozen=True)
 class Scenario:
@@ -64,6 +99,7 @@ class Scenario:
     expected_health: SiteHealth
     due_shift: dict[str, int] = field(default_factory=dict)
     activation: ActivationStatus = ActivationStatus.in_startup
+    trial_type: TrialType = TrialType.drug
 
 
 SCENARIOS: dict[str, Scenario] = {
@@ -185,6 +221,99 @@ SCENARIOS: dict[str, Scenario] = {
             SiteHealth.activated,
             activation=ActivationStatus.activated,
         ),
+        Scenario(
+            "device_contract_stall",
+            80,
+            {
+                **_DEV_ALL_BUT("CONTRACT_EXECUTED"),
+                "CONTRACT_EXECUTED": _blocked("Legal review: device liability and indemnification unresolved"),
+            },
+            SiteHealth.blocked,
+            trial_type=TrialType.device,
+        ),
+        Scenario(
+            "device_check_delay",
+            55,
+            {
+                **_done("IRB_APPROVAL", "BUDGET_FINALIZED", "REGULATORY_DOCS", "STAFF_TRAINING", "LAB_SYSTEMS_ACCESS"),
+                "CONTRACT_EXECUTED": P,
+                "DEVICE_SAFETY_CHECK": P,
+            },
+            SiteHealth.blocked,
+            trial_type=TrialType.device,
+        ),
+        Scenario(
+            "device_shipment_late",
+            70,
+            {**_DEV_ALL_BUT("DEVICE_SHIPMENT", "DEVICE_TRAINING"), "DEVICE_SHIPMENT": P},
+            SiteHealth.blocked,
+            trial_type=TrialType.device,
+        ),
+        Scenario(
+            "device_training_gap",
+            80,
+            {**_DEV_ALL_BUT("DEVICE_TRAINING"), "DEVICE_TRAINING": P},
+            SiteHealth.blocked,
+            trial_type=TrialType.device,
+        ),
+        Scenario(
+            "device_on_track",
+            40,
+            {
+                **_done(
+                    "BUDGET_FINALIZED", "REGULATORY_DOCS", "STAFF_TRAINING", "DEVICE_SAFETY_CHECK", "LAB_SYSTEMS_ACCESS"
+                ),
+                "IRB_APPROVAL": P,
+                "CONTRACT_EXECUTED": P,
+            },
+            SiteHealth.on_track,
+            trial_type=TrialType.device,
+        ),
+        Scenario(
+            "device_activated",
+            110,
+            {**_DEV_ALL_BUT(), "SIV": C, "GREEN_LIGHT": C},
+            SiteHealth.activated,
+            activation=ActivationStatus.activated,
+            trial_type=TrialType.device,
+        ),
+        Scenario(
+            "plain_irb_delay",
+            75,
+            {**_PLAIN_ALL_BUT("IRB_APPROVAL"), "IRB_APPROVAL": P},
+            SiteHealth.blocked,
+            trial_type=TrialType.no_product,
+        ),
+        Scenario(
+            "plain_budget_dispute",
+            62,
+            {
+                **_PLAIN_ALL_BUT("CONTRACT_EXECUTED", "BUDGET_FINALIZED"),
+                "CONTRACT_EXECUTED": P,
+                "BUDGET_FINALIZED": _blocked("Awaiting sponsor response on per-visit rates"),
+            },
+            SiteHealth.blocked,
+            trial_type=TrialType.no_product,
+        ),
+        Scenario(
+            "plain_on_track",
+            40,
+            {
+                **_done("BUDGET_FINALIZED", "REGULATORY_DOCS", "STAFF_TRAINING", "LAB_SYSTEMS_ACCESS"),
+                "IRB_APPROVAL": P,
+                "CONTRACT_EXECUTED": P,
+            },
+            SiteHealth.on_track,
+            trial_type=TrialType.no_product,
+        ),
+        Scenario(
+            "plain_activated",
+            95,
+            {**_PLAIN_ALL_BUT(), "SIV": C, "GREEN_LIGHT": C},
+            SiteHealth.activated,
+            activation=ActivationStatus.activated,
+            trial_type=TrialType.no_product,
+        ),
     )
 }
 
@@ -205,6 +334,16 @@ TRIAL_PLANS: dict[str, tuple[str, ...]] = {
         "at_risk_slack",
     ),
     "NCT06312176": ("irb_delay_long", "green_light_pending", "na_pharmacy", "on_hold", "activated_b", "on_track_mid"),
+    "NCT06058377": ("irb_delay", "pharmacy_delay", "budget_dispute", "on_track_mid", "almost_ready", "activated_a"),
+    "NCT05866458": ("plain_irb_delay", "plain_budget_dispute", "plain_on_track", "plain_activated"),
+    DEVICE_TRIAL_KEY: (
+        "device_contract_stall",
+        "device_check_delay",
+        "device_shipment_late",
+        "device_training_gap",
+        "device_on_track",
+        "device_activated",
+    ),
 }
 
 COMPLETION_NOTES = {
@@ -216,6 +355,9 @@ COMPLETION_NOTES = {
     "PHARMACY_SETUP": "Storage and accountability log verified",
     "LAB_SYSTEMS_ACCESS": "Lab kits and system logins confirmed",
     "DRUG_SHIPMENT": "Shipment received and logged",
+    "DEVICE_SAFETY_CHECK": "Biomedical safety inspection passed",
+    "DEVICE_SHIPMENT": "Device received and logged",
+    "DEVICE_TRAINING": "Operators trained and signed off",
     "SIV": "Initiation visit complete, no open gating items",
     "GREEN_LIGHT": "Sponsor authorized enrollment",
 }
@@ -257,23 +399,95 @@ def _spread(items: list, count: int) -> list:
     return [items[round(i * (len(items) - 1) / (count - 1))] for i in range(count)]
 
 
+# The registry pull has no device trial, so the device demo is a labeled synthetic trial.
+# Its sites are fictional too: real hospitals must not appear in a trial they are not in.
+SYNTHETIC_DEVICE_TRIAL = {
+    "title": "Synthetic demo: wearable ECG patch for cardiac monitoring during breast cancer treatment",
+    "acronym": "TF-DEVICE-DEMO",
+    "sponsor_name": "Example Medical Devices (synthetic)",
+}
+SYNTHETIC_DEVICE_SITES = (
+    ("Northbridge Medical Center (synthetic)", "Boston", "Massachusetts", 42.36, -71.06),
+    ("Lakeshore University Hospital (synthetic)", "Chicago", "Illinois", 41.88, -87.63),
+    ("Riverbend Cancer Institute (synthetic)", "Nashville", "Tennessee", 36.16, -86.78),
+    ("Summit Regional Hospital (synthetic)", "Denver", "Colorado", 39.74, -104.99),
+    ("Coastal Heart & Oncology Center (synthetic)", "San Diego", "California", 32.72, -117.16),
+    ("Pinecrest Health System (synthetic)", "Atlanta", "Georgia", 33.75, -84.39),
+)
+
+
+def _ensure_synthetic_device_trial(session: Session) -> m.Trial:
+    """Create the synthetic device trial and its fictional sites if missing (idempotent)."""
+    trial = session.scalar(select(m.Trial).where(m.Trial.acronym == SYNTHETIC_DEVICE_TRIAL["acronym"]))
+    if trial is None:
+        trial = m.Trial(
+            nct_id=None,
+            **SYNTHETIC_DEVICE_TRIAL,
+            phases=["NA"],
+            study_type="INTERVENTIONAL",
+            intervention_types=["DEVICE"],
+            overall_status=RecruitmentStatus.NOT_YET_RECRUITING,
+            source_type=SourceType.synthetic,
+        )
+        session.add(trial)
+        session.flush()
+    have = {ts.site.name for ts in session.scalars(select(m.TrialSite).where(m.TrialSite.trial_id == trial.id))}
+    for name, city, state, lat, lon in SYNTHETIC_DEVICE_SITES:
+        if name in have:
+            continue
+        site = session.scalar(select(m.Site).where(m.Site.dedup_key == f"synthetic|{name.lower()}"))
+        if site is None:
+            site = m.Site(
+                dedup_key=f"synthetic|{name.lower()}",
+                name=name,
+                city=city,
+                state=state,
+                country="United States",
+                latitude=lat,
+                longitude=lon,
+                source_type=SourceType.synthetic,
+            )
+            session.add(site)
+            session.flush()
+        session.add(
+            m.TrialSite(
+                trial_id=trial.id,
+                site_id=site.id,
+                ctgov_location_index=None,  # synthetic sites have no registry location
+                activation_status=ActivationStatus.selected,
+                source_type=SourceType.synthetic,
+            )
+        )
+    session.flush()
+    return trial
+
+
 def is_seeded(session: Session) -> bool:
     return session.scalar(select(m.TrialSite.id).where(m.TrialSite.scenario_label.is_not(None)).limit(1)) is not None
 
 
 def clear_seed(session: Session) -> None:
-    """Remove all synthetic activation data and put the trial sites back to the imported state."""
+    """Remove all synthetic activation data and put the trial sites back to the imported state.
+
+    Synthetic trials and their fictional sites are deleted outright; registry trial sites
+    go back to ``selected`` with no activation data.
+    """
     seeded = select(m.TrialSite.id).where(m.TrialSite.scenario_label.is_not(None))
     milestone_ids = select(m.Milestone.id).where(m.Milestone.trial_site_id.in_(seeded))
     session.execute(delete(m.MilestoneEvent).where(m.MilestoneEvent.milestone_id.in_(milestone_ids)))
     session.execute(delete(m.MilestoneDependency).where(m.MilestoneDependency.trial_site_id.in_(seeded)))
     session.execute(delete(m.Milestone).where(m.Milestone.trial_site_id.in_(seeded)))
+    synthetic_trials = select(m.Trial.id).where(m.Trial.source_type == SourceType.synthetic)
+    synthetic_sites = select(m.Site.id).where(m.Site.source_type == SourceType.synthetic)
+    session.execute(delete(m.User).where(m.User.source_type == SourceType.synthetic))
+    session.execute(delete(m.TrialSite).where(m.TrialSite.trial_id.in_(synthetic_trials)))
+    session.execute(delete(m.Trial).where(m.Trial.id.in_(synthetic_trials)))
+    session.execute(delete(m.Site).where(m.Site.id.in_(synthetic_sites)))
     for ts in session.scalars(select(m.TrialSite).where(m.TrialSite.scenario_label.is_not(None))).all():
         ts.activation_status = ActivationStatus.selected
         ts.selected_date = ts.target_activation_date = ts.actual_activation_date = None
         ts.scenario_label = None
         ts.source_type = SourceType.public_registry
-    session.execute(delete(m.User).where(m.User.source_type == SourceType.synthetic))
     session.flush()
 
 
@@ -290,16 +504,25 @@ def seed(
     picked_total = events_total = 0
 
     for nct_id, count in seed_trials:
-        trial = session.scalar(select(m.Trial).where(m.Trial.nct_id == nct_id))
+        if nct_id == DEVICE_TRIAL_KEY:
+            trial = _ensure_synthetic_device_trial(session)
+        else:
+            trial = session.scalar(select(m.Trial).where(m.Trial.nct_id == nct_id))
         if trial is None:
             continue
         eligible = session.scalars(
             select(m.TrialSite)
             .join(m.Site)
             .where(m.TrialSite.trial_id == trial.id, ~m.Site.is_placeholder_name)
-            .order_by(m.TrialSite.ctgov_location_index)
+            .order_by(m.TrialSite.ctgov_location_index, m.TrialSite.id)
         ).all()
         plan = TRIAL_PLANS[nct_id]
+        trial_type = classify_trial_type(trial.intervention_types)
+        for label in plan:
+            if SCENARIOS[label].trial_type != trial_type:
+                raise ValueError(
+                    f"{label} is a {SCENARIOS[label].trial_type.value} scenario, {nct_id} is {trial_type.value}"
+                )
         picked = _spread(list(eligible), min(count, len(plan)))
         trial.target_site_count = len(picked)
         trial.target_fpi_date = as_of + timedelta(days=30)
@@ -391,7 +614,12 @@ def _apply_scenario(
 ) -> int:
     selected = as_of - timedelta(days=sc.selected_days_ago)
     milestones = instantiate_trial_site(session, ts, selected, owners)
-    preds = {spec.code: spec.predecessors for spec in DEFAULT_TEMPLATES}
+    checklist = checklist_for(sc.trial_type)
+    unknown = set(sc.states) | set(sc.due_shift)
+    unknown -= {spec.code for spec in checklist}
+    if unknown:
+        raise ValueError(f"{sc.label}: {sorted(unknown)} are not in the {sc.trial_type.value} checklist")
+    preds = {spec.code: spec.predecessors for spec in checklist}
     last_day = as_of - timedelta(days=1)  # history never reaches into today or the future
     completed_on: dict[str, date] = {}
     events: list[m.MilestoneEvent] = []
@@ -413,7 +641,7 @@ def _apply_scenario(
         )
 
     original_green_due = milestones["GREEN_LIGHT"].due_date
-    for spec in sorted(DEFAULT_TEMPLATES, key=lambda s: s.sort_order):
+    for spec in sorted(checklist, key=lambda s: s.sort_order):
         ms = milestones[spec.code]
         state = sc.states.get(spec.code)
         ms.status_changed_at = _at(selected, 9)  # untouched milestones have been waiting since selection

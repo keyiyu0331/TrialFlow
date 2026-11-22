@@ -13,11 +13,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .enums import (
     ActivationStatus,
     DelayLevel,
+    DocumentCategory,
     EventType,
     MilestoneStatus,
     RecruitmentStatus,
     SiteHealth,
     SourceType,
+    TrialType,
     UserRole,
     Workstream,
 )
@@ -97,6 +99,7 @@ class TrialSummary(ORMModel):
     title: str
     acronym: str | None
     phases: list[str]
+    trial_type: TrialType = Field(description="Computed from intervention types: drug, device, or no_product")
     sponsor_name: str | None
     overall_status: RecruitmentStatus | None
     site_count: int = Field(description="Computed: number of trial sites")
@@ -122,6 +125,8 @@ class TrialRef(ORMModel):
     id: int
     nct_id: str | None
     title: str
+    trial_type: TrialType
+    source_type: SourceType
 
 
 # ---------- Milestones ----------
@@ -332,11 +337,36 @@ class AskTurn(BaseModel):
     text: str = Field(max_length=4000)
 
 
+class AskDocumentFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(max_length=100)
+    value: str = Field(max_length=100)
+    quote: str = Field(default="", max_length=300)
+
+
+class AskDocument(BaseModel):
+    """The last document the user uploaded in this chat, as POST /assistant/document described it.
+
+    Sent back by the frontend so follow-up questions ("when does this approval expire?") can be
+    answered from it. User-supplied and untrusted: data for the model, never instructions or site status.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    filename: str = Field(max_length=200)
+    category_label: str = Field(default="", max_length=100)
+    title: str = Field(default="", max_length=200)
+    summary: str = Field(default="", max_length=1000)
+    key_facts: list[AskDocumentFact] = Field(default_factory=list, max_length=6)
+
+
 class AskRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     question: str = Field(min_length=1, max_length=300)
     history: list[AskTurn] = Field(default_factory=list, max_length=10, description="Last turns, oldest first")
+    document: AskDocument | None = Field(default=None, description="The document uploaded earlier in this chat")
     role: UserRole = Field(description="Caller's role, from the frontend session (the API has no auth)")
     site_id: int | None = Field(default=None, description="Caller's site; scopes answers for site staff")
 
@@ -354,3 +384,29 @@ class AskAnswer(BaseModel):
     links: list[AskLink] = Field(description="Only trial sites the assistant actually looked up")
     follow: list[str] = Field(default_factory=list, description="Suggested follow-up questions")
     source: Literal["claude"] = "claude"
+
+
+# ---------- Document upload (Ask TrialFlow) ----------
+
+
+class DocumentFact(BaseModel):
+    label: str = Field(description="e.g. Approval date")
+    value: str
+    quote: str = Field(description="The exact words in the document that say it, so a person can check")
+
+
+class DocumentAnalysis(BaseModel):
+    """A summary and category for one uploaded document. A suggestion: nothing is changed."""
+
+    filename: str
+    category: DocumentCategory
+    category_label: str
+    related_milestone: str | None = Field(description="The milestone this document usually evidences, if any")
+    title: str
+    summary: str
+    key_facts: list[DocumentFact]
+    source: Literal["claude", "rule_based"] = Field(description="Which analyzer produced this")
+    truncated: bool = Field(description="True if only the start of a long document was read")
+    source_type: SourceType = Field(
+        default=SourceType.synthetic, description="Generated analysis of an upload; never registry data"
+    )

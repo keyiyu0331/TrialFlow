@@ -294,6 +294,18 @@ details.panel .panel__head { margin: 0; }
 .ask__chips button { border: 1px solid var(--line-strong); background: #fff; color: var(--purple); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .ask__chips button:hover { background: #f3effc; }
 .ask__form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+.ask__attach { flex: none; width: 40px; border: 1px solid var(--line-strong); border-radius: 10px; background: #fff; cursor: pointer; font-size: 16px; }
+.ask__attach:disabled { opacity: 0.5; cursor: default; }
+.ask__doc { margin-top: 10px; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; }
+.ask__doc p { margin: 6px 0 0; }
+.ask__doc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ask__doc-head small { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ask__doc-note { color: var(--ink-3); font-size: 12px; }
+.ask__facts { margin: 10px 0 0; display: flex; flex-direction: column; gap: 4px; }
+.ask__facts div { display: flex; justify-content: space-between; gap: 12px; }
+.ask__facts dt { color: var(--ink-3); }
+.ask__facts dd { margin: 0; font-weight: 600; text-align: right; }
+.ask__form input[type="text"], .ask__form input:not([type]) { flex: 1; }
 .ask__form input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px; font: inherit; font-size: 14px; }
 
 /* Daily brief */

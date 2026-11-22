@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.db import Base, get_engine  # noqa: E402
+from app.db import get_engine, init_db  # noqa: E402
 from app.services.registry_import import import_registry  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
@@ -32,7 +32,7 @@ def main() -> None:
         retrieved_at = datetime.fromisoformat(json.loads(args.metadata.read_text())["retrieved_at_utc"])
 
     engine = get_engine()
-    Base.metadata.create_all(engine)
+    init_db(engine)
     with Session(engine) as session:
         result = import_registry(session, studies, retrieved_at)
         session.commit()

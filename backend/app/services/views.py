@@ -16,6 +16,7 @@ from .. import models as m
 from .. import schemas as s
 from ..enums import SATISFIED_STATUSES, ActivationStatus, DelayLevel
 from . import readiness as rd
+from .trial_types import classify_trial_type
 
 DELAY_RANK = {DelayLevel.on_time: 0, DelayLevel.days_1_7: 1, DelayLevel.days_8_30: 2, DelayLevel.over_30: 3}
 
@@ -181,7 +182,13 @@ def trial_site_summary(bundle: SiteBundle, site: m.Site) -> s.TrialSiteSummary:
 def trial_site_detail(bundle: SiteBundle, site: m.Site, trial: m.Trial, now: datetime) -> s.TrialSiteDetail:
     return s.TrialSiteDetail(
         **_summary_kwargs(bundle, site),
-        trial=s.TrialRef.model_validate(trial),
+        trial=s.TrialRef(
+            id=trial.id,
+            nct_id=trial.nct_id,
+            title=trial.title,
+            trial_type=classify_trial_type(trial.intervention_types),
+            source_type=trial.source_type,
+        ),
         selected_date=bundle.trial_site.selected_date,
         milestones=[milestone_out(ms, bundle, now) for ms in bundle.milestones],
     )
@@ -262,6 +269,7 @@ def trial_summary(trial: m.Trial, counts: s.ActivationCounts) -> s.TrialSummary:
         title=trial.title,
         acronym=trial.acronym,
         phases=trial.phases,
+        trial_type=classify_trial_type(trial.intervention_types),
         sponsor_name=trial.sponsor_name,
         overall_status=trial.overall_status,
         site_count=sum(counts.model_dump().values()),

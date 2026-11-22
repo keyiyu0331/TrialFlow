@@ -81,6 +81,8 @@ class Trial(TimestampMixin, Base):
     # designModule.phases is an array (e.g. ["PHASE1", "PHASE2"]) and may be absent.
     phases: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     study_type: Mapped[str | None] = mapped_column(String(32))
+    # armsInterventionsModule.interventions[].type, de-duplicated (e.g. ["DRUG", "PROCEDURE"]).
+    intervention_types: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     sponsor_name: Mapped[str | None] = mapped_column(Text)
     lead_sponsor_class: Mapped[str | None] = mapped_column(String(32))
     overall_status: Mapped[RecruitmentStatus | None] = mapped_column(_enum(RecruitmentStatus, "recruitment_status"))

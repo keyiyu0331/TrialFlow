@@ -27,6 +27,17 @@ class RecruitmentStatus(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class TrialType(str, Enum):
+    """What a trial ships to sites. Derived from registry intervention types; never stored.
+
+    It decides which milestones a trial site gets (see services/templates.py).
+    """
+
+    drug = "drug"
+    device = "device"
+    no_product = "no_product"
+
+
 class ActivationStatus(str, Enum):
     selected = "selected"
     in_startup = "in_startup"
@@ -91,3 +102,16 @@ class SiteHealth(str, Enum):
     blocked = "blocked"
     at_risk = "at_risk"
     on_track = "on_track"
+
+
+class DocumentCategory(str, Enum):
+    """What kind of site document an upload is. Each maps to the milestone it usually evidences."""
+
+    irb_approval = "irb_approval"
+    contract = "contract"
+    budget = "budget"
+    regulatory_docs = "regulatory_docs"
+    training_record = "training_record"
+    pharmacy = "pharmacy"
+    shipment = "shipment"
+    other = "other"

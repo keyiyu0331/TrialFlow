@@ -43,6 +43,8 @@ The backend exposes trial lists, sites and milestone status, and a readiness sum
 
 The LLM layer attaches to the backend after the readiness engine (`POST /assistant/ask`, `backend/app/services/assistant.py`). Claude answers chat questions by calling read-only tools that return filtered, structured site status: only the trial sites the caller may see, and owner names and roles but no emails or contact details. It generates *suggested answers* (and draft follow-up messages for the user to send), never authoritative status changes, and links only to trial sites the tools returned. Missing evidence must remain unknown. The final readiness result is computed from recorded milestone states, not inferred by the model. If no API key is configured or the call fails, the frontend falls back to the rule-based answers in `frontend/src/lib/ask.ts`.
 
+The chat can also summarize and categorize an uploaded site document (`POST /assistant/document`, `backend/app/services/documents.py`): text is extracted from the PDF or text file, contact details are removed, and Claude returns a structured summary, a category, and facts that each quote the document. It has no tools and changes nothing. Without a key it falls back to a keyword-based analyzer in the backend.
+
 ### Key database entities
 - `trials`: `id`, `nct_id` (unique), `title`, `overall_status`, `start_date`, `completion_date`, `last_registry_sync_at`.
 - `sites`: `id`, `trial_id`, `facility`, `city`, `state`, `country`, `reported_recruitment_status`, `source_type`.

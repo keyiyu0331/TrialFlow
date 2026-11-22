@@ -6,7 +6,7 @@ models avoid PostgreSQL-only types and SQLite gets foreign-key enforcement on.
 
 import os
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -47,3 +47,17 @@ def get_session():
     """FastAPI dependency: one session per request."""
     with SessionLocal(bind=get_engine()) as session:
         yield session
+
+
+def init_db(engine: Engine) -> None:
+    """Create missing tables, and add columns that newer code expects to an older database.
+
+    ``create_all`` never alters an existing table, so a database built before a column existed
+    would fail with "no such column". Each addition here is non-destructive and safe to re-run.
+    """
+    Base.metadata.create_all(engine)
+    columns = {c["name"] for c in inspect(engine).get_columns("trials")}
+    if "intervention_types" not in columns:
+        # Registry trials are backfilled by the next scripts/import_registry.py run.
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE trials ADD COLUMN intervention_types JSON NOT NULL DEFAULT '[]'"))

@@ -1,28 +1,31 @@
 """Reference data: milestone templates and users."""
 
-from collections import defaultdict
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models as m
 from ..db import get_session
-from ..enums import UserRole
+from ..enums import TrialType, UserRole
 from ..schemas import TemplateOut, UserOut
+from ..services.templates import checklist_for
 
 router = APIRouter(tags=["reference"])
 
 
 @router.get(
-    "/templates", response_model=list[TemplateOut], summary="Standard milestone checklist with default dependencies"
+    "/templates",
+    response_model=list[TemplateOut],
+    summary="Milestone checklist for a trial type (default drug) with its dependencies",
 )
-def list_templates(session: Session = Depends(get_session)):
-    templates = session.scalars(select(m.MilestoneTemplate).order_by(m.MilestoneTemplate.sort_order)).all()
-    code_by_id = {t.id: t.code for t in templates}
-    predecessors: dict[int, list[str]] = defaultdict(list)
-    for dep in session.scalars(select(m.TemplateDependency)):
-        predecessors[dep.successor_template_id].append(code_by_id[dep.predecessor_template_id])
+def list_templates(trial_type: TrialType = TrialType.drug, session: Session = Depends(get_session)):
+    checklist = checklist_for(trial_type)
+    predecessors = {spec.code: sorted(spec.predecessors) for spec in checklist}
+    templates = session.scalars(
+        select(m.MilestoneTemplate)
+        .where(m.MilestoneTemplate.code.in_(predecessors))
+        .order_by(m.MilestoneTemplate.sort_order)
+    ).all()
     return [
         TemplateOut(
             id=t.id,
@@ -33,7 +36,7 @@ def list_templates(session: Session = Depends(get_session)):
             default_duration_days=t.default_duration_days,
             is_gate=t.is_gate,
             sort_order=t.sort_order,
-            predecessor_codes=sorted(predecessors[t.id]),
+            predecessor_codes=predecessors[t.code],
         )
         for t in templates
     ]

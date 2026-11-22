@@ -52,7 +52,7 @@ def test_openapi_lists_every_endpoint(client):
 
 def test_trial_list_counts_and_search(client):
     page = client.get("/trials?limit=500").json()
-    assert page["total"] == 25
+    assert page["total"] == 26  # 25 registry trials + the synthetic device trial
     swog = next(t for t in page["items"] if t["nct_id"] == SWOG)
     assert swog["activation_counts"]["in_startup"] == 11
     assert swog["activation_counts"]["activated"] == 1
@@ -346,3 +346,12 @@ def test_cors_allows_the_frontend_dev_server(client):
 @pytest.mark.parametrize("path", ["/health"])
 def test_health(client, path):
     assert client.get(path).json() == {"status": "ok"}
+
+
+def test_trial_ref_and_document_analysis_carry_source_type(client):
+    detail = client.get(f"/trial-sites/{site_by_scenario(client, 'irb_delay')['id']}").json()
+    assert detail["trial"]["source_type"] in ("public_registry", "synthetic")
+    r = client.post(
+        "/assistant/document", params={"filename": "a.txt"}, content=b"IRB approval letter. Approval date: 2026-10-12"
+    )
+    assert r.json()["source_type"] == "synthetic"

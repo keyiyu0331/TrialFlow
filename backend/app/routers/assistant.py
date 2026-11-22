@@ -3,13 +3,14 @@
 from datetime import UTC, date, datetime
 
 import anthropic
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..deps import get_today
-from ..schemas import AskAnswer, AskRequest, ErrorResponse
-from ..services import assistant
+from ..schemas import AskAnswer, AskRequest, DocumentAnalysis, ErrorResponse
+from ..services import assistant, documents
 from ..services.assistant_tools import Scope, load_world
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
@@ -37,6 +38,52 @@ def ask(
         raise _unavailable("The assistant is not configured (ANTHROPIC_API_KEY is not set)")
     world = load_world(session, Scope(body.role, body.site_id), today, datetime.now(UTC))
     try:
-        return assistant.ask(client, body.question, body.history, world, today)
+        return assistant.ask(client, body.question, body.history, world, today, body.document)
     except assistant.AssistantUnavailable as e:
         raise _unavailable(str(e)) from e
+
+
+@router.post(
+    "/document",
+    response_model=DocumentAnalysis,
+    responses={
+        413: {"model": ErrorResponse, "description": "file_too_large (over 2 MB)"},
+        415: {"model": ErrorResponse, "description": "unsupported_file_type (PDF, .txt or .md only)"},
+        422: {"model": ErrorResponse, "description": "empty_file, unreadable_pdf, or no_text (scanned PDF)"},
+    },
+    summary="Summarize and categorize an uploaded site document (never changes data, never stores the file)",
+)
+async def analyze_document(
+    request: Request,
+    filename: str = Query(
+        min_length=1, max_length=200, description="Original file name; its extension picks the reader"
+    ),
+    client: anthropic.Anthropic | None = Depends(assistant.get_client),
+):
+    """The body is the raw file bytes. Uses Claude when configured and a rule-based analyzer otherwise."""
+    data = await _read_capped(request)
+    try:
+        read = await run_in_threadpool(documents.read_document, filename, data)
+    except documents.DocumentError as e:
+        raise HTTPException(e.status, detail={"detail": e.detail, "code": e.code}) from e
+    return await run_in_threadpool(documents.analyze, client, filename, read.text, read.truncated)
+
+
+def _too_large() -> HTTPException:
+    return HTTPException(
+        413,
+        detail={"detail": "The file is larger than 2 MB.", "code": "file_too_large"},
+    )
+
+
+async def _read_capped(request: Request) -> bytes:
+    """The request body, refused as soon as it passes the size limit instead of after buffering it all."""
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > documents.MAX_BYTES:
+        raise _too_large()
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > documents.MAX_BYTES:
+            raise _too_large()
+    return bytes(body)

@@ -1,0 +1,15 @@
+STUDY TEAM TRAINING LOG
+Protocol: TF-DEVICE-DEMO    Site: Riverbend Cancer Institute (synthetic)
+
+Good Clinical Practice (GCP) training
+- Research coordinator: completed 2026-09-18, certificate valid until 2029-09-18
+- Sub-investigator: completed 2026-09-22, certificate valid until 2029-09-22
+- Research nurse: not yet completed
+
+Protocol training
+- Delivered by the sponsor's CRA on October 2, 2026.
+- Attended by the research coordinator and the sub-investigator. The research nurse was absent and needs a makeup session.
+
+Open items: the research nurse must complete GCP training and attend protocol training before the site initiation visit.
+
+SYNTHETIC SAMPLE DOCUMENT: made up for the TrialFlow demo. Not a real training record.

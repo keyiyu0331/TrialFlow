@@ -18,8 +18,10 @@ from ..schemas import (
     Page,
     TrialSiteDetail,
     TrialSiteGraph,
+    WhatIfRequest,
+    WhatIfResult,
 )
-from ..services import readiness, views
+from ..services import readiness, views, what_if
 from .common import NOT_FOUND, limit_param, not_found, offset_param
 
 router = APIRouter(prefix="/trial-sites", tags=["trial sites"])
@@ -52,6 +54,25 @@ def get_trial_site(trial_site_id: int, session: Session = Depends(get_session), 
 )
 def get_trial_site_graph(trial_site_id: int, session: Session = Depends(get_session), today: date = Depends(get_today)):
     return views.graph(_bundle(session, trial_site_id, today))
+
+
+@router.post(
+    "/{trial_site_id}/what-if",
+    response_model=WhatIfResult,
+    responses={**NOT_FOUND, 422: {"model": ErrorResponse, "description": "invalid_assumption or validation_error"}},
+    summary="Project the green light if some milestones finished on assumed dates (never saves anything)",
+)
+def what_if_projection(
+    trial_site_id: int,
+    body: WhatIfRequest,
+    session: Session = Depends(get_session),
+    today: date = Depends(get_today),
+):
+    bundle = _bundle(session, trial_site_id, today)
+    try:
+        return what_if.simulate(bundle, body.assumptions, today)
+    except what_if.InvalidAssumption as e:
+        raise HTTPException(422, detail={"detail": str(e), "code": "invalid_assumption"}) from e
 
 
 @router.get(

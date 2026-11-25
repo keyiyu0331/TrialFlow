@@ -228,3 +228,63 @@ def test_would_create_cycle():
 def test_unknown_milestone_in_edge_is_rejected():
     with pytest.raises(ValueError, match="unknown"):
         analyze(build(), EDGES + [(IRB, 99)], AS_OF)
+
+
+# ---------- D15: what-if projection ----------
+
+
+def what_if(assumed, statuses=None, dues=None):
+    ms = build(statuses, dues)
+    return analyze(ms, EDGES, AS_OF), analyze(
+        ms, EDGES, AS_OF, {k: AS_OF + timedelta(days=v) for k, v in assumed.items()}
+    )
+
+
+def test_what_if_without_assumptions_is_the_baseline():
+    ms = build(dues={CONTRACT: 50})
+    assert analyze(ms, EDGES, AS_OF, {}) == analyze(ms, EDGES, AS_OF)
+
+
+def test_what_if_earlier_finish_pulls_the_green_light_in_two_hops():
+    # The contract (due +50) pushes SIV (+52, 7 days) to +57 and the green light (+55) to +60.
+    base, sim = what_if({CONTRACT: 40}, dues={CONTRACT: 50})
+    assert base.milestones[GREEN].projected_finish == AS_OF + timedelta(days=60) and base.site_slip_days == 5
+    assert sim.milestones[CONTRACT].projected_finish == AS_OF + timedelta(days=40)
+    assert sim.milestones[SIV].projected_finish == AS_OF + timedelta(days=52)
+    assert sim.milestones[GREEN].projected_finish == AS_OF + timedelta(days=55)
+    assert sim.site_slip_days == 0 and not sim.milestones[SIV].impacted
+    assert (base.health, sim.health) == (SiteHealth.at_risk, SiteHealth.on_track)
+
+
+def test_what_if_later_finish_pushes_the_green_light():
+    base, sim = what_if({BUDGET: 60})
+    assert base.site_slip_days == 0
+    assert sim.milestones[SIV].projected_finish == AS_OF + timedelta(days=67)
+    assert sim.milestones[GREEN].projected_finish == AS_OF + timedelta(days=70) and sim.site_slip_days == 15
+
+
+def test_what_if_never_changes_status_based_values():
+    base, sim = what_if({PHARMACY: 40}, dues={PHARMACY: -3})
+    for mid in TEMPLATE:
+        b, n = base.milestones[mid], sim.milestones[mid]
+        assert (b.ready, b.overdue, b.days_overdue, b.blocking, b.root_blocker) == (
+            n.ready,
+            n.overdue,
+            n.days_overdue,
+            n.blocking,
+            n.root_blocker,
+        )
+    assert sim.top_blocker_id == base.top_blocker_id == PHARMACY and sim.health == SiteHealth.blocked
+    assert sim.milestones[SHIPMENT].projected_finish == AS_OF + timedelta(days=54)
+
+
+def test_what_if_leaves_a_not_applicable_branch_alone():
+    base, sim = what_if({IRB: 50}, statuses={PHARMACY: NA})
+    assert sim.milestones[PHARMACY].projected_finish is None
+    assert sim.milestones[SHIPMENT].projected_finish == AS_OF + timedelta(days=64)
+
+
+def test_what_if_assumption_wins_over_its_predecessors():
+    _, sim = what_if({SIV: 10})
+    assert sim.milestones[SIV].projected_finish == AS_OF + timedelta(days=10)
+    assert sim.milestones[GREEN].projected_finish == AS_OF + timedelta(days=55)  # its own due date still holds

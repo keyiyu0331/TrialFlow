@@ -113,13 +113,23 @@ def would_create_cycle(edges: list[Edge], predecessor_id: int, successor_id: int
     return find_path(edges, successor_id, predecessor_id) is not None
 
 
-def analyze(milestones: list[MilestoneInput], edges: list[Edge], as_of: date) -> SiteAnalysis:
+def analyze(
+    milestones: list[MilestoneInput],
+    edges: list[Edge],
+    as_of: date,
+    assumed_finish: dict[int, date] | None = None,
+) -> SiteAnalysis:
     """Compute readiness, blockers, slip, and health for one trial site.
 
     Raises ValueError for unknown milestone ids in ``edges`` or for a cycle.
     Milestones without a due date are never overdue and never slip, but they
     still wait on their predecessors.
+
+    ``assumed_finish`` (D15, what-if) replaces the projected finish of the given
+    milestones; their successors follow through D9. Only projection-derived values
+    change: status-based ones (ready, overdue, blocking, top blocker) do not.
     """
+    assumed_finish = assumed_finish or {}
     by_id = {m.id: m for m in milestones}
     preds: dict[int, list[int]] = {m.id: [] for m in milestones}
     succs: dict[int, list[int]] = {m.id: [] for m in milestones}
@@ -135,7 +145,10 @@ def analyze(milestones: list[MilestoneInput], edges: list[Edge], as_of: date) ->
     # D9: projected finish, predecessors first.
     finish: dict[int, date | None] = {}
     for mid in order:
-        finish[mid] = _projected_finish(by_id[mid], [finish[p] for p in preds[mid]], as_of)
+        if mid in assumed_finish:
+            finish[mid] = assumed_finish[mid]
+        else:
+            finish[mid] = _projected_finish(by_id[mid], [finish[p] for p in preds[mid]], as_of)
 
     states: dict[int, MilestoneState] = {}
     for m in milestones:

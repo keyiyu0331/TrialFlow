@@ -5,6 +5,7 @@ import DependencyGraph from "@/components/DependencyGraph";
 import History from "@/components/History";
 import MilestoneList from "@/components/MilestoneList";
 import Timeline from "@/components/Timeline";
+import WhatIf from "@/components/WhatIf";
 import { ApiError, ApiUnreachable, getEvents, getGraph, getSite, TRIAL_TYPE_LABEL } from "@/lib/api";
 import { fmtDate, location, plural, roleLabel } from "@/lib/format";
 import { getSession } from "@/lib/session";
@@ -176,6 +177,10 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
         </div>
         <Timeline milestones={site.milestones} />
       </details>
+
+      {site.health !== "activated" && (
+        <WhatIf trialSiteId={site.id} milestones={site.milestones} topBlockerId={b?.milestone_id ?? null} />
+      )}
 
       <details className="card panel" style={{ marginBottom: 56 }}>
         <summary>

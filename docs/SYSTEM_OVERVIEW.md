@@ -95,6 +95,7 @@ flowchart TD
 | `deps.py` | `get_today()`: the date computed values are measured against; tests override it |
 | `services/readiness.py` | Pure functions (no database): `analyze()` for readiness, blocking, top blocker, slip, health; `find_path()` for cycle checks. See `docs/domain-rules.md` |
 | `services/views.py` | `load_bundles()` loads milestones and dependencies for many trial sites in two queries, runs `analyze()`, and builds response schemas |
+| `services/what_if.py` | Rule D15: re-runs `analyze()` with assumed finish dates and diffs it against the real projection; read-only |
 | `services/templates.py` | Copies milestone templates and template dependencies into a new trial site |
 | `services/registry_import.py` | Parses the registry JSON into trials, sites, and trial sites (dedup keys, partial dates) |
 | `services/seeding.py` | Synthetic owners, milestones, and events for the scenario trial sites |
@@ -157,6 +158,8 @@ sequenceDiagram
 - updates the milestone row and writes one `milestone_events` row per changed field (status, owner, due date);
 - sets the trial site to `activated` when GREEN_LIGHT is completed, and back to `in_startup` if it is reopened;
 - returns the updated milestone, its events, and the trial site's activation status.
+
+The what-if planning card (`POST /trial-sites/{id}/what-if`, rule D15) is read-only: `services/what_if.py` re-runs `readiness.analyze()` on the already-loaded bundle with assumed finish dates and returns the difference, writing nothing.
 
 Adding a dependency (`POST /trial-sites/{id}/dependencies`) runs `readiness.find_path()` first and returns 409 `dependency_cycle` with the cycle path if the new edge would close a loop.
 

@@ -61,6 +61,8 @@ Sorted by kind in that order, then most days overdue, then soonest due. *Urgent*
 
 **D14. Trial type** (decides which checklist a trial site gets). Computed from `trials.intervention_types`, never stored. Drug if any of DRUG, BIOLOGICAL, DIETARY_SUPPLEMENT, GENETIC, COMBINATION_PRODUCT, DIAGNOSTIC_TEST (registry diagnostic tests here are radiotracers, which the site pharmacy handles); else device if DEVICE; else no product (behavioral, procedure, radiation only, observational, none). A trial with both a drug and a device is a drug trial. Drug adds PHARMACY_SETUP and DRUG_SHIPMENT; device adds DEVICE_SAFETY_CHECK, DEVICE_SHIPMENT (after IRB_APPROVAL and the safety check) and DEVICE_TRAINING (after the shipment); no product adds nothing. SIV depends on every other non-gate step of the checklist. The registry pull has no device trial, so the device demo is a labeled synthetic trial (`TF-DEVICE-DEMO`) at fictional sites.
 
+**D15. What-if projection** (planning card on the trial site page, `POST /trial-sites/{id}/what-if`). Re-runs D9 with up to five assumed finish dates: an assumed milestone's projected finish *is* the assumed date, and its successors follow through D9 as usual. Only projection-derived values change (projected finish, slip, impacted, site slip, and health where slip decides it, `at_risk` vs `on_track`). Status-based values (Ready, overdue, blocking, top blocker) do not: a what-if never completes anything, so a site with a root blocker stays `blocked`. The assumption wins over its predecessors' projected finish, with a warning when they finish later. Eligible: unsatisfied milestones of that trial site, dated on or after `as_of`. Never stored, never writes `milestone_events`. Note that D9 projects an overdue unfinished milestone to finish `as_of`, so for a late step a realistic future date shows how far go-live really slips; earlier dates help only steps that are not yet due.
+
 ## Required tests
 
 Derive them from the rules above, not from the implementation. Fixtures should use the default template from `schema.md`.
@@ -77,6 +79,7 @@ Derive them from the rules above, not from the implementation. Fixtures should u
 10. Dependency cycle is rejected with 409 `dependency_cycle` (already in `schema.md`).
 11. Open tasks (D13): kind precedence, `due_soon` only for in-progress or Ready milestones, and sort order (`tests/test_tasks.py`).
 12. Trial type (D14): classification of each intervention mix, one checklist per type, device dates and dependency counts, and a scenario for the wrong type is refused (`tests/test_trial_types.py`).
+13. What-if (D15): earlier and later assumptions move the green light through two hops, status-based values and the top blocker do not change, a `not_applicable` branch is unaffected, an assumption earlier than its predecessors is honored, no assumptions equals the baseline (`tests/test_readiness.py`); the endpoint saves nothing and refuses unusable assumptions with 422 `invalid_assumption` (`tests/test_api.py`).
 
 ## Open questions
 

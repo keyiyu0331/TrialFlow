@@ -84,6 +84,13 @@ export default function WhatIf({
   }
 
   const delta = result ? deltaText(result.delta_days) : null;
+  // Late steps the user dated today: the page already assumes that, so it is the best case for them.
+  const bestCase = result
+    ? assumptions
+        .filter((a) => a.finish_date === result.as_of)
+        .map((a) => milestones.find((m) => m.id === a.milestone_id))
+        .filter((m): m is Milestone => !!m && m.days_overdue > 0)
+    : [];
   const recovered = result?.changed.filter((m) => !m.assumed && m.baseline_slip_days > 0 && m.slip_days === 0) ?? [];
   const slipping = result?.changed.filter((m) => !m.assumed && m.slip_days > 0) ?? [];
   const assumed = result?.changed.filter((m) => m.assumed) ?? [];
@@ -183,6 +190,14 @@ export default function WhatIf({
               <HealthChip health={result.health} />
             </div>
           </div>
+          {result.delta_days === 0 && bestCase.length > 0 && (
+            <p className="whatif__note whatif__note--best">
+              This is already the best case. {bestCase.map((m) => m.name).join(" and ")}{" "}
+              {bestCase.length === 1 ? "is" : "are"} late, so today's projection already assumes{" "}
+              {bestCase.length === 1 ? "it finishes" : "they finish"} today, the earliest possible date. A later date
+              shows how much a realistic finish would push go-live out.
+            </p>
+          )}
           <p className="whatif__note">
             {result.site_slip_days > 0
               ? `Still ${plural(result.site_slip_days, "day")} past the target go-live.`
@@ -203,11 +218,13 @@ export default function WhatIf({
             </ul>
           )}
 
-          <div className="whatif__cols">
-            <StepList title="Your dates" items={assumed} />
-            <StepList title="Back on schedule" items={recovered} empty="None" />
-            <StepList title="Still slipping" items={slipping} empty="None" />
-          </div>
+          {result.changed.length > 0 && (
+            <div className="whatif__cols">
+              <StepList title="Your dates" items={assumed} />
+              <StepList title="Back on schedule" items={recovered} empty="None" />
+              <StepList title="Still slipping" items={slipping} empty="None" />
+            </div>
+          )}
         </div>
       )}
     </section>

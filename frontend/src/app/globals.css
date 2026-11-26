@@ -553,6 +553,7 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 2px 6px; border: 
 .whatif__delta--same { background: var(--lav-1); color: var(--ink-2); }
 .whatif__health { display: flex; align-items: center; gap: 8px; color: var(--ink-3); }
 .whatif__note { margin: 12px 0 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+.whatif__note--best { padding: 10px 14px; border-radius: var(--radius); background: var(--done-bg); color: var(--purple); }
 .whatif__warnings { margin: 12px 0 0; padding: 10px 14px 10px 30px; border-radius: var(--radius); background: var(--risk-bg); color: var(--risk); font-size: 13px; }
 .whatif__cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
 .whatif__cols .data-note { margin: 6px 0 0; }

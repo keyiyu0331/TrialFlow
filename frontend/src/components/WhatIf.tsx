@@ -186,11 +186,14 @@ export default function WhatIf({
               <div className="whatif__target">Target {target}</div>
             </div>
             <span className={`whatif__delta whatif__delta--${delta.tone}`}>{delta.text}</span>
-            <div className="whatif__health">
-              <HealthChip health={result.baseline_health} />
-              <span aria-hidden>→</span>
-              <HealthChip health={result.health} />
-            </div>
+            {/* Only when the plan changes the site's health (e.g. At risk → On track); Blocked → Blocked says nothing. */}
+            {result.health !== result.baseline_health && (
+              <div className="whatif__health">
+                <HealthChip health={result.baseline_health} />
+                <span aria-hidden>→</span>
+                <HealthChip health={result.health} />
+              </div>
+            )}
           </div>
           {result.delta_days === 0 && bestCase.length > 0 && (
             <p className="whatif__note whatif__note--best">

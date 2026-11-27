@@ -36,6 +36,11 @@ class SiteBundle:
     milestones: list[m.Milestone]  # in checklist order
     deps: list[m.MilestoneDependency]
     analysis: rd.SiteAnalysis
+    inputs: list[rd.MilestoneInput]  # what ``analysis`` was computed from (reused by what-if)
+
+    @property
+    def edges(self) -> list[rd.Edge]:
+        return [(d.predecessor_id, d.successor_id) for d in self.deps]
 
     @property
     def by_id(self) -> dict[int, m.Milestone]:
@@ -57,7 +62,14 @@ def build_bundle(
     ts: m.TrialSite, milestones: list[m.Milestone], deps: list[m.MilestoneDependency], today: date
 ) -> SiteBundle:
     milestones = sorted(milestones, key=_order_key)
-    inputs = [
+    inputs = milestone_inputs(milestones)
+    analysis = rd.analyze(inputs, [(d.predecessor_id, d.successor_id) for d in deps], today)
+    return SiteBundle(ts, milestones, deps, analysis, inputs)
+
+
+def milestone_inputs(milestones: list[m.Milestone]) -> list[rd.MilestoneInput]:
+    """The fields of each milestone the readiness rules need."""
+    return [
         rd.MilestoneInput(
             id=ms.id,
             status=ms.status,
@@ -69,8 +81,6 @@ def build_bundle(
         )
         for ms in milestones
     ]
-    analysis = rd.analyze(inputs, [(d.predecessor_id, d.successor_id) for d in deps], today)
-    return SiteBundle(ts, milestones, deps, analysis)
 
 
 def load_bundles(session: Session, trial_sites: list[m.TrialSite], today: date) -> dict[int, SiteBundle]:
@@ -158,7 +168,8 @@ def _summary_kwargs(bundle: SiteBundle, site: m.Site) -> dict:
         site=s.SiteOut.model_validate(site),
         reported_recruitment_status=ts.reported_recruitment_status,
         activation_status=ts.activation_status,
-        target_activation_date=ts.target_activation_date,
+        # One source for the target go-live: the green light step's due date (falls back to the stored target).
+        target_activation_date=green.due_date if green and green.due_date else ts.target_activation_date,
         actual_activation_date=ts.actual_activation_date,
         scenario_label=ts.scenario_label,
         source_type=ts.source_type,

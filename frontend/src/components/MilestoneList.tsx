@@ -8,12 +8,22 @@ import { useMe } from "./SessionProvider";
 
 const STATUSES = Object.keys(STATUS_LABEL) as MilestoneStatus[];
 
+/** Today as YYYY-MM-DD in local time: a new due date can't be in the past. */
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
   const router = useRouter();
   const { me } = useMe();
   const [status, setStatus] = useState<MilestoneStatus>(m.status);
   const [reason, setReason] = useState(m.blocked_reason ?? "");
   const [note, setNote] = useState("");
+  const [due, setDue] = useState(m.due_date ?? "");
+  // Moving deadlines is a planning decision, so only sponsor-side users (start-up managers) see it.
+  const canMoveDue = !!me?.sponsor && m.status !== "complete" && m.status !== "not_applicable";
+  const isGreenLight = m.template_code === "GREEN_LIGHT";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +34,8 @@ export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
     if (status !== m.status) body.status = status;
     if (status === "blocked" && reason.trim() !== (m.blocked_reason ?? "")) body.blocked_reason = reason.trim();
     if (note.trim()) body.note = note.trim();
-    if (!body.status && !body.blocked_reason && !body.note) {
+    if (canMoveDue && due && due !== (m.due_date ?? "")) body.due_date = due;
+    if (!body.status && !body.blocked_reason && !body.note && !body.due_date) {
       setBusy(false);
       onDone();
       return;
@@ -60,6 +71,12 @@ export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add context for the history" />
         )}
       </label>
+      {canMoveDue && (
+        <label>
+          <span className="label">{isGreenLight ? "Due date (target go-live)" : "Due date"}</span>
+          <input type="date" value={due} min={todayIso()} onChange={(e) => setDue(e.target.value)} />
+        </label>
+      )}
       <div className="editor__actions">
         <button className="btn btn--primary" onClick={save} disabled={busy}>
           {busy ? "Saving…" : "Save"}
@@ -71,6 +88,10 @@ export function Editor({ m, onDone }: { m: Milestone; onDone: () => void }) {
       {error && <div className="editor__error">{error}</div>}
       <div className="editor__hint">
         {me ? `Recorded as ${me.name}. ` : ""}Progress, blockers and go-live dates update when you save.
+        {canMoveDue &&
+          (isGreenLight
+            ? " Moving this date moves the site's target go-live."
+            : " Moving the due date moves the whole step; how long it takes stays the same.")}
       </div>
     </div>
   );

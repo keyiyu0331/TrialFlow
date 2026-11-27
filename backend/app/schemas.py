@@ -283,6 +283,49 @@ class GraphEdge(BaseModel):
     source_type: SourceType
 
 
+class WhatIfAssumption(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    milestone_id: int
+    finish_date: date = Field(description="Assumed finish; on or after today")
+
+
+class WhatIfRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    assumptions: list[WhatIfAssumption] = Field(min_length=1, max_length=5)
+
+
+class WhatIfMilestone(BaseModel):
+    milestone_id: int
+    name: str
+    baseline_finish: date | None
+    projected_finish: date | None
+    baseline_slip_days: int
+    slip_days: int
+    impacted: bool = Field(description="Still projected to slip under the assumptions")
+    assumed: bool = Field(description="One of the milestones the user set a date for")
+
+
+class WhatIfResult(BaseModel):
+    """Rule D15: the projection if some milestones finished on assumed dates. Computed; nothing is saved."""
+
+    trial_site_id: int
+    as_of: date
+    target_activation_date: date | None = Field(description="Target go-live: the green light step's due date")
+    baseline_activation_date: date | None
+    projected_activation_date: date | None
+    delta_days: int | None = Field(description="Projected minus baseline green light; negative is earlier")
+    baseline_site_slip_days: int
+    site_slip_days: int
+    baseline_health: SiteHealth
+    health: SiteHealth
+    still_blocked: bool = Field(description="Blocked today either way: a what-if never completes anything")
+    changed: list[WhatIfMilestone] = Field(description="Milestones whose finish or slip changes, checklist order")
+    warnings: list[str]
+    source_type: SourceType = SourceType.synthetic
+
+
 class TrialSiteGraph(BaseModel):
     trial_site_id: int
     green_light_milestone_id: int | None

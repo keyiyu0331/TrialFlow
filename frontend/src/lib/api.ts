@@ -239,6 +239,8 @@ export function trackedTrials(trials: TrialSummary[]): TrialSummary[] {
 export interface MilestoneUpdate {
   status?: MilestoneStatus;
   blocked_reason?: string;
+  /** Moves the step's window: the planned start shifts by the same number of days. Not in the past. */
+  due_date?: string;
   note?: string;
   changed_by_user_id?: number;
 }
@@ -285,4 +287,59 @@ export interface DocumentAnalysis {
   source: "claude" | "rule_based";
   truncated: boolean;
   source_type: SourceType;
+}
+
+// ---------- What-if (rule D15) ----------
+
+export interface WhatIfAssumption {
+  milestone_id: number;
+  finish_date: string;
+}
+
+export interface WhatIfMilestone {
+  milestone_id: number;
+  name: string;
+  baseline_finish: string | null;
+  projected_finish: string | null;
+  baseline_slip_days: number;
+  slip_days: number;
+  impacted: boolean;
+  assumed: boolean;
+}
+
+export interface WhatIfResult {
+  trial_site_id: number;
+  as_of: string;
+  /** Target go-live: the green light step's due date. */
+  target_activation_date: string | null;
+  baseline_activation_date: string | null;
+  projected_activation_date: string | null;
+  delta_days: number | null;
+  baseline_site_slip_days: number;
+  site_slip_days: number;
+  baseline_health: SiteHealth;
+  health: SiteHealth;
+  still_blocked: boolean;
+  changed: WhatIfMilestone[];
+  warnings: string[];
+  source_type: SourceType;
+}
+
+/** Projects the green light under assumed finish dates. Read-only: the API saves nothing. */
+export async function simulateWhatIf(
+  trialSiteId: number,
+  assumptions: WhatIfAssumption[],
+): Promise<{ result: WhatIfResult } | { error: string }> {
+  try {
+    const res = await fetch(`${BROWSER_API}/trial-sites/${trialSiteId}/what-if`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assumptions }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) return { result: data as WhatIfResult };
+    return { error: data.detail ?? `Simulation failed (${res.status})` };
+  } catch {
+    return { error: `Could not reach the API at ${BROWSER_API}` };
+  }
 }

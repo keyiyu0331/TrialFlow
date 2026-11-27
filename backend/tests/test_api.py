@@ -3,7 +3,10 @@
 "Today" is pinned to AS_OF, so overdue days and delay levels are exact.
 """
 
+from datetime import date, timedelta
+
 import pytest
+from conftest import AS_OF
 
 SWOG = "NCT07578116"
 
@@ -41,6 +44,7 @@ def test_openapi_lists_every_endpoint(client):
         "/trial-sites/{trial_site_id}/graph": {"get"},
         "/trial-sites/{trial_site_id}/events": {"get"},
         "/trial-sites/{trial_site_id}/dependencies": {"post"},
+        "/trial-sites/{trial_site_id}/what-if": {"post"},
         "/dependencies/{dependency_id}": {"delete"},
         "/milestones/{milestone_id}": {"patch"},
         "/templates": {"get"},
@@ -355,3 +359,104 @@ def test_trial_ref_and_document_analysis_carry_source_type(client):
         "/assistant/document", params={"filename": "a.txt"}, content=b"IRB approval letter. Approval date: 2026-10-12"
     )
     assert r.json()["source_type"] == "synthetic"
+
+
+# ---------- What-if (D15) ----------
+
+
+def what_if(client, ts_id, *assumptions):
+    body = {"assumptions": [{"milestone_id": m, "finish_date": d.isoformat()} for m, d in assumptions]}
+    return client.post(f"/trial-sites/{ts_id}/what-if", json=body)
+
+
+def test_what_if_projects_without_saving_anything(client):
+    row = site_by_scenario(client, "contract_stall")
+    detail = client.get(f"/trial-sites/{row['id']}").json()
+    events = client.get(f"/trial-sites/{row['id']}/events").json()["total"]
+    contract = milestone(detail, "CONTRACT_EXECUTED")
+    green = milestone(detail, "GREEN_LIGHT")
+
+    r = what_if(client, row["id"], (contract["id"], AS_OF + timedelta(days=60)))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["as_of"] == AS_OF.isoformat() and body["source_type"] == "synthetic"
+    assert body["baseline_activation_date"] == detail["projected_activation_date"] == green["projected_finish"]
+    assert body["delta_days"] > 0  # finishing the contract in 60 days pushes go-live out
+    assert date.fromisoformat(body["projected_activation_date"]) > date.fromisoformat(body["baseline_activation_date"])
+    assert body["still_blocked"] and body["health"] == "blocked"  # a what-if never completes the stalled contract
+    changed = {m["milestone_id"]: m for m in body["changed"]}
+    assert (
+        changed[contract["id"]]["assumed"]
+        and changed[contract["id"]]["projected_finish"] == (AS_OF + timedelta(days=60)).isoformat()
+    )
+    assert green["id"] in changed and not changed[green["id"]]["assumed"]
+
+    assert client.get(f"/trial-sites/{row['id']}").json() == detail
+    assert client.get(f"/trial-sites/{row['id']}/events").json()["total"] == events
+
+
+def test_what_if_rejects_unusable_assumptions(client):
+    row = site_by_scenario(client, "contract_stall")
+    detail = client.get(f"/trial-sites/{row['id']}").json()
+    contract = milestone(detail, "CONTRACT_EXECUTED")["id"]
+    done = next(m["id"] for m in detail["milestones"] if m["status"] == "complete")
+    foreign = next(
+        m["id"]
+        for r in dashboard(client)["items"]
+        if r["id"] != row["id"]
+        for m in client.get(f"/trial-sites/{r['id']}").json()["milestones"]
+    )
+    later = AS_OF + timedelta(days=7)
+    for assumptions in (
+        [(foreign, later)],
+        [(done, later)],
+        [(contract, AS_OF - timedelta(days=1))],
+        [(contract, later), (contract, later)],
+    ):
+        r = what_if(client, row["id"], *assumptions)
+        assert r.status_code == 422 and r.json()["code"] == "invalid_assumption", assumptions
+    assert what_if(client, row["id"]).json()["code"] == "validation_error"  # no assumptions
+    six = [(contract, later)] * 6
+    assert what_if(client, row["id"], *six).json()["code"] == "validation_error"
+    assert what_if(client, 999_999, (contract, later)).status_code == 404
+
+
+# ---------- Target go-live = the green light's due date ----------
+
+
+def test_moving_the_green_light_due_date_moves_the_target(client, seeded):
+    from app import models as m
+
+    row = site_by_scenario(client, "contract_stall")
+    detail = client.get(f"/trial-sites/{row['id']}").json()
+    green = milestone(detail, "GREEN_LIGHT")
+    assert detail["target_activation_date"] == green["due_date"]
+    new_due = (date.fromisoformat(green["due_date"]) + timedelta(days=14)).isoformat()
+
+    r = client.patch(f"/milestones/{green['id']}", json={"due_date": new_due, "note": "Sponsor agreed a new date"})
+    assert r.status_code == 200
+    assert [(e["event_type"], e["new_value"]) for e in r.json()["events"]] == [("due_date_change", new_due)]
+    after = client.get(f"/trial-sites/{row['id']}").json()
+    assert after["target_activation_date"] == new_due
+    assert after["site_slip_days"] == detail["site_slip_days"] - 14  # slip is measured against the new target
+    seeded.expire_all()
+    assert seeded.get(m.TrialSite, row["id"]).target_activation_date.isoformat() == new_due
+    wi = what_if(client, row["id"], (milestone(after, "CONTRACT_EXECUTED")["id"], AS_OF + timedelta(days=3))).json()
+    assert wi["target_activation_date"] == new_due
+
+
+def test_moving_another_due_date_keeps_the_target(client):
+    row = site_by_scenario(client, "contract_stall")
+    detail = client.get(f"/trial-sites/{row['id']}").json()
+    contract = milestone(detail, "CONTRACT_EXECUTED")
+    new_due = (AS_OF + timedelta(days=5)).isoformat()
+    r = client.patch(f"/milestones/{contract['id']}", json={"due_date": new_due})
+    assert r.status_code == 200 and r.json()["events"][0]["event_type"] == "due_date_change"
+    after = client.get(f"/trial-sites/{row['id']}").json()
+    assert after["target_activation_date"] == detail["target_activation_date"]
+    moved = milestone(after, "CONTRACT_EXECUTED")
+    assert moved["due_date"] == new_due
+    shift = date.fromisoformat(new_due) - date.fromisoformat(contract["due_date"])
+    assert moved["planned_start_date"] == (date.fromisoformat(contract["planned_start_date"]) + shift).isoformat()
+    past = client.patch(f"/milestones/{contract['id']}", json={"due_date": (AS_OF - timedelta(days=1)).isoformat()})
+    assert past.status_code == 422 and past.json()["code"] == "invalid_due_date"

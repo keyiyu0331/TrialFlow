@@ -239,6 +239,8 @@ export function trackedTrials(trials: TrialSummary[]): TrialSummary[] {
 export interface MilestoneUpdate {
   status?: MilestoneStatus;
   blocked_reason?: string;
+  /** Moves the step's window: the planned start shifts by the same number of days. Not in the past. */
+  due_date?: string;
   note?: string;
   changed_by_user_id?: number;
 }
@@ -308,6 +310,8 @@ export interface WhatIfMilestone {
 export interface WhatIfResult {
   trial_site_id: number;
   as_of: string;
+  /** Target go-live: the green light step's due date. */
+  target_activation_date: string | null;
   baseline_activation_date: string | null;
   projected_activation_date: string | null;
   delta_days: number | null;

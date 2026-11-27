@@ -74,6 +74,7 @@ def simulate(bundle: SiteBundle, assumptions: list[s.WhatIfAssumption], as_of: d
     return s.WhatIfResult(
         trial_site_id=bundle.trial_site.id,
         as_of=as_of,
+        target_activation_date=green.due_date if green and green.due_date else bundle.trial_site.target_activation_date,
         baseline_activation_date=base_go,
         projected_activation_date=sim_go,
         delta_days=(sim_go - base_go).days if base_go and sim_go else None,

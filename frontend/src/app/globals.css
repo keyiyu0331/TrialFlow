@@ -218,7 +218,7 @@ h1, h2, h3, p { margin: 0; }
 .btn--primary { background: var(--purple); border-color: var(--purple); color: #fff; }
 .btn--primary:hover { background: #4b32a0; }
 .btn:disabled { opacity: 0.5; cursor: progress; transform: none; }
-.editor { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) auto; gap: 12px; align-items: end; padding: 14px 16px; background: rgba(124, 91, 209, 0.06); border: 1px solid var(--line); border-radius: var(--radius); }
+.editor { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) repeat(2, auto); gap: 12px; align-items: end; padding: 14px 16px; background: rgba(124, 91, 209, 0.06); border: 1px solid var(--line); border-radius: var(--radius); }
 .editor label { display: grid; gap: 6px; }
 .editor select, .editor input { padding: 9px 11px; background: rgba(255, 255, 255, 0.85); border: 1px solid var(--line-strong); border-radius: var(--radius); font-size: 14px; width: 100%; }
 .editor__actions { display: flex; gap: 8px; }
@@ -547,6 +547,7 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 2px 6px; border: 
 .whatif__headline { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; }
 .whatif__dates { display: flex; align-items: baseline; gap: 10px; font-size: 20px; margin-top: 4px; color: var(--ink-2); }
 .whatif__dates strong { color: var(--ink); font-size: 24px; }
+.whatif__target { margin-top: 4px; font-size: 12px; color: var(--ink-3); }
 .whatif__delta { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
 .whatif__delta--ok { background: var(--ok-bg); color: var(--ok); }
 .whatif__delta--late { background: var(--blocked-bg); color: var(--blocked); }

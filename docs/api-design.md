@@ -12,7 +12,7 @@ FastAPI, JSON. Interactive docs are at `/docs`. Stubs live in `backend/app/route
 | GET | `/trial-sites/{id}` | One trial site with all its milestones | — |
 | GET | `/trial-sites/{id}/graph` | **Dependency graph:** nodes, edges, blocking flags | — |
 | GET | `/trial-sites/{id}/events` | Change-history timeline, newest first | `milestone_id`, `event_type`*, `since`, `limit`, `offset` |
-| PATCH | `/milestones/{id}` | **Update status, owner, or due date;** writes one event per changed field; a `blocked` status change keeps `blocked_reason` as its note; `complete` is rejected (409) while predecessors are open | body: `status`, `owner_user_id`, `due_date`, `blocked_reason`, `note`, `changed_by_user_id` |
+| PATCH | `/milestones/{id}` | **Update status, owner, or due date;** writes one event per changed field; a `blocked` status change keeps `blocked_reason` as its note; `complete` is rejected (409) while predecessors are open; a new `due_date` shifts the planned start by the same days (step length unchanged), cannot be in the past (422 `invalid_due_date`), and on the green light also moves the trial site's `target_activation_date` | body: `status`, `owner_user_id`, `due_date`, `blocked_reason`, `note`, `changed_by_user_id` |
 | POST | `/trial-sites/{id}/dependencies` | Add a dependency. **409** for `dependency_cycle`, `cross_trial_site`, or `duplicate_dependency` | body: `predecessor_id`, `successor_id` |
 | POST | `/trial-sites/{id}/what-if` | **What-if (D15):** projected green light if some milestones finished on assumed dates. Read-only: nothing is saved. **422** `invalid_assumption` for a milestone of another trial site, one already complete or not applicable, a date before today, or a duplicate | body: `assumptions` (1-5 `{milestone_id, finish_date}`) |
 | DELETE | `/dependencies/{id}` | Remove a dependency (204) | — |
@@ -108,7 +108,7 @@ A dependency conflict on POST returns:
 ```
 returns
 ```json
-{"trial_site_id": 1440, "as_of": "2026-11-24",
+{"trial_site_id": 1440, "as_of": "2026-11-24", "target_activation_date": "2026-10-26",
  "baseline_activation_date": "2026-12-18", "projected_activation_date": "2026-12-25", "delta_days": 7,
  "baseline_site_slip_days": 54, "site_slip_days": 61, "baseline_health": "blocked", "health": "blocked",
  "still_blocked": true,

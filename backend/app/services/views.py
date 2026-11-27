@@ -168,7 +168,8 @@ def _summary_kwargs(bundle: SiteBundle, site: m.Site) -> dict:
         site=s.SiteOut.model_validate(site),
         reported_recruitment_status=ts.reported_recruitment_status,
         activation_status=ts.activation_status,
-        target_activation_date=ts.target_activation_date,
+        # One source for the target go-live: the green light step's due date (falls back to the stored target).
+        target_activation_date=green.due_date if green and green.due_date else ts.target_activation_date,
         actual_activation_date=ts.actual_activation_date,
         scenario_label=ts.scenario_label,
         source_type=ts.source_type,

@@ -26,7 +26,7 @@ Only the key columns are listed; `models.py` is the source of truth.
 
 **sites**: `dedup_key` (unique), `name`, `is_placeholder_name`, `city`, `state`, `zip`, `country`, `latitude`/`longitude` (city-level centroid, range-checked), `source_type`.
 
-**trial_sites**: `trial_id` FK, `site_id` FK, **UNIQUE(trial_id, site_id)**, `ctgov_location_index` (≥ 1; NULL for the synthetic device trial's sites, which have no registry location), `reported_recruitment_status` (CT.gov enum), `activation_status` (`selected | in_startup | activated | on_hold | dropped`), `selected_date`, `target_activation_date`, `actual_activation_date` (**CHECK** only set when activated), `scenario_label`, `source_type`.
+**trial_sites**: `trial_id` FK, `site_id` FK, **UNIQUE(trial_id, site_id)**, `ctgov_location_index` (≥ 1; NULL for the synthetic device trial's sites, which have no registry location), `reported_recruitment_status` (CT.gov enum), `activation_status` (`selected | in_startup | activated | on_hold | dropped`), `selected_date`, `target_activation_date` (kept equal to the GREEN_LIGHT milestone's `due_date`; the API reads the green light, see D11), `actual_activation_date` (**CHECK** only set when activated), `scenario_label`, `source_type`.
 
 **users**: `name`, `email` (unique), `role` (`startup_manager | cra | site_coordinator | regulatory | contracts | pharmacist | lab_manager | pi | sponsor_supply`), `site_id` FK (null for sponsor or CRO staff), `team_name` (set when the owner is a team).
 

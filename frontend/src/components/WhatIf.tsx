@@ -84,6 +84,7 @@ export default function WhatIf({
   }
 
   const delta = result ? deltaText(result.delta_days) : null;
+  const target = fmtDate(result?.target_activation_date, true);
   // Late steps the user dated today: the page already assumes that, so it is the best case for them.
   const bestCase = result
     ? assumptions
@@ -182,6 +183,7 @@ export default function WhatIf({
                 <span aria-hidden>→</span>
                 <strong>{fmtDate(result.projected_activation_date, true)}</strong>
               </div>
+              <div className="whatif__target">Target {target}</div>
             </div>
             <span className={`whatif__delta whatif__delta--${delta.tone}`}>{delta.text}</span>
             <div className="whatif__health">
@@ -200,10 +202,10 @@ export default function WhatIf({
           )}
           <p className="whatif__note">
             {result.site_slip_days > 0
-              ? `Still ${plural(result.site_slip_days, "day")} past the target go-live.`
+              ? `Green light would still be ${plural(result.site_slip_days, "day")} after its target (${target}).`
               : result.baseline_site_slip_days > 0
-                ? "Back on target: the site would go live by its target date."
-                : "On target."}
+                ? `Back on target: green light would be on or before its target (${target}).`
+                : `Green light would be on or before its target (${target}).`}
             {(result.delta_days ?? 0) > 0 &&
               " Today's projection assumes late steps finish today, so a later date for them pushes go-live out."}
             {result.still_blocked &&

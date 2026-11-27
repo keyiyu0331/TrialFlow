@@ -55,8 +55,9 @@ def update_milestone(
         raise _unprocessable("unknown_user", "Unknown owner_user_id")
     if body.changed_by_user_id is not None and session.get(m.User, body.changed_by_user_id) is None:
         raise _unprocessable("unknown_user", "Unknown changed_by_user_id")
-    if body.due_date and ms.planned_start_date and body.due_date < ms.planned_start_date:
-        raise _unprocessable("invalid_due_date", "due_date cannot be before the planned start date")
+
+    if body.due_date and body.due_date != ms.due_date and body.due_date < today:
+        raise _unprocessable("invalid_due_date", "A new due date cannot be in the past")
 
     if body.status == MilestoneStatus.complete and ms.status != MilestoneStatus.complete:
         # A milestone cannot finish before what it depends on, otherwise a site could be green-lit early.
@@ -108,7 +109,13 @@ def update_milestone(
                 body.due_date.isoformat() if body.due_date else None,
             )
         )
+        if ms.due_date and body.due_date and ms.planned_start_date:
+            # Moving a deadline moves the step's window: its planned length (D9 duration) stays the same.
+            ms.planned_start_date += body.due_date - ms.due_date
         ms.due_date = body.due_date
+        if ms.template and ms.template.code == readiness.GREEN_LIGHT_CODE:
+            # The green light's due date is the target go-live; keep the stored copy in step.
+            session.get(m.TrialSite, ms.trial_site_id).target_activation_date = body.due_date
 
     # Keep the reason a milestone was blocked in its history; it is cleared from the row once unblocked.
     status_note = body.note or (ms.blocked_reason if ms.status == MilestoneStatus.blocked else None)

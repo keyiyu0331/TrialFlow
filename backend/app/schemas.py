@@ -312,6 +312,7 @@ class WhatIfResult(BaseModel):
 
     trial_site_id: int
     as_of: date
+    target_activation_date: date | None = Field(description="Target go-live: the green light step's due date")
     baseline_activation_date: date | None
     projected_activation_date: date | None
     delta_days: int | None = Field(description="Projected minus baseline green light; negative is earlier")

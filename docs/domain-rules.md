@@ -41,7 +41,9 @@ The `as_of` floor means an overdue milestone cannot finish before today.
 
 **D10. Slip.** `slip_days(m) = max(0, projected_finish(m) - due_date(m))`. An unsatisfied milestone with `slip_days > 0` is **impacted**. This is how the UI shows which later steps a delay pushes back.
 
-**D11. Trial site slip and delay level.** `site_slip = slip_days(GREEN_LIGHT)`, bucketed with the same `DelayLevel` thresholds as D4.
+**D11. Trial site slip and delay level.** `site_slip = slip_days(GREEN_LIGHT)`, bucketed with the same `DelayLevel` thresholds as D4. The **target go-live** is GREEN_LIGHT's `due_date`: the API reports it as `target_activation_date`, and changing the green light's due date also updates the stored `trial_sites.target_activation_date` in the same transaction, so the slip and the target shown next to it never disagree.
+
+**Moving a due date.** A due-date change through `PATCH /milestones/{id}` shifts `planned_start_date` by the same number of days, so the step's D9 duration stays the same (the step's window moves; the work doesn't get longer). A new due date cannot be in the past (422 `invalid_due_date`). The seed's scripted shifts are history and move only the due date.
 
 **D12. Health** (dashboard state):
 - `activated`: GREEN_LIGHT is `complete`.
@@ -80,6 +82,7 @@ Derive them from the rules above, not from the implementation. Fixtures should u
 11. Open tasks (D13): kind precedence, `due_soon` only for in-progress or Ready milestones, and sort order (`tests/test_tasks.py`).
 12. Trial type (D14): classification of each intervention mix, one checklist per type, device dates and dependency counts, and a scenario for the wrong type is refused (`tests/test_trial_types.py`).
 13. What-if (D15): earlier and later assumptions move the green light through two hops, status-based values and the top blocker do not change, a `not_applicable` branch is unaffected, an assumption earlier than its predecessors is honored, no assumptions equals the baseline (`tests/test_readiness.py`); the endpoint saves nothing and refuses unusable assumptions with 422 `invalid_assumption` (`tests/test_api.py`).
+14. Target go-live (D11): moving the green light's due date moves `target_activation_date` and lowers the slip by the same days; moving another step's due date keeps the target and shifts its planned start; a past due date is refused (`tests/test_api.py`).
 
 ## Open questions
 
